@@ -54,13 +54,43 @@ else
     fi
 fi
 
-# Ensure CUDA is on PATH
-if ! grep -q 'cuda/bin' ~/.bashrc; then
-    echo 'export PATH=/usr/local/cuda/bin:$PATH' >> ~/.bashrc
-    echo 'export LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH:-}' >> ~/.bashrc
+echo "== [2b/4] CUDA PATH =="
+# Find the actual CUDA installation directory
+CUDA_PATH=""
+for candidate in /usr/local/cuda /usr/local/cuda-13.2 /usr/local/cuda-13.1 /usr/local/cuda-13.0 /usr/local/cuda-12.4; do
+    if [ -d "$candidate/bin" ]; then
+        CUDA_PATH="$candidate"
+        break
+    fi
+done
+
+if [ -z "$CUDA_PATH" ]; then
+    # Try finding nvcc directly
+    NVCC_PATH="$(command -v nvcc 2>/dev/null || true)"
+    if [ -n "$NVCC_PATH" ]; then
+        CUDA_PATH="$(dirname "$(dirname "$NVCC_PATH")")"
+    fi
 fi
-export PATH=/usr/local/cuda/bin:$PATH
-export LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH:-}
+
+if [ -n "$CUDA_PATH" ]; then
+    echo "  Found CUDA at: $CUDA_PATH"
+    # Add to current session
+    export PATH="$CUDA_PATH/bin:$PATH"
+    export LD_LIBRARY_PATH="$CUDA_PATH/lib64:${LD_LIBRARY_PATH:-}"
+
+    # Add to .bashrc permanently if not already there
+    if ! grep -q "$CUDA_PATH/bin" ~/.bashrc; then
+        echo "" >> ~/.bashrc
+        echo "# CUDA" >> ~/.bashrc
+        echo "export PATH=$CUDA_PATH/bin:\$PATH" >> ~/.bashrc
+        echo "export LD_LIBRARY_PATH=$CUDA_PATH/lib64:\${LD_LIBRARY_PATH:-}" >> ~/.bashrc
+        echo "  Added CUDA to ~/.bashrc"
+    else
+        echo "  [skip] CUDA already in ~/.bashrc"
+    fi
+else
+    echo "  WARNING: CUDA directory not found. nvcc may not work."
+fi
 
 echo "== [3/4] Project venv =="
 if [ -d "$VENV_DIR" ]; then
@@ -72,21 +102,19 @@ fi
 source "$VENV_DIR/bin/activate"
 pip install --upgrade pip -q
 
-echo "== [4/4] Python packages (requirements.txt) =="
-# PyTorch must be installed from a custom index URL first
-if ! python -c "import torch" &>/dev/null 2>&1; then
-    echo "  Installing PyTorch (cu126 wheels)..."
-    pip install torch==2.12.0+cu126 torchvision==0.20.0+cu126 torchaudio==2.12.0+cu126 \
-        --index-url https://download.pytorch.org/whl/cu126
-else
+echo "== [4/4] Python packages =="
+# PyTorch: install from custom index URL (not in requirements.txt)
+if python -c "import torch" &>/dev/null 2>&1; then
     echo "  [skip] torch already installed: $(python -c 'import torch; print(torch.__version__)')"
+else
+    echo "  Installing PyTorch (cu126 wheels)..."
+    pip install torch torchvision torchaudio \
+        --index-url https://download.pytorch.org/whl/cu126
 fi
 
-# Install everything else from requirements.txt (pip skips already-installed packages)
-echo "  Installing remaining packages from requirements.txt..."
-pip install -r "$SCRIPT_DIR/requirements.txt" \
-    --extra-index-url https://download.pytorch.org/whl/cu126 \
-    --quiet
+# All other dependencies from requirements.txt
+echo "  Installing packages from requirements.txt..."
+pip install -r "$SCRIPT_DIR/requirements.txt" --quiet
 
 mkdir -p "$SCRIPT_DIR/data/capture" "$SCRIPT_DIR/data/flame" "$SCRIPT_DIR/output"
 

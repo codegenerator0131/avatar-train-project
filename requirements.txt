@@ -1,6 +1,3 @@
-torch==2.12.0+cu126
-torchvision==0.20.0+cu126
-torchaudio==2.12.0+cu126
 numpy
 opencv-python-headless
 pillow
