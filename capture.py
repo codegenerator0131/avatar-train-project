@@ -34,6 +34,8 @@ from tqdm import tqdm
 
 try:
     import mediapipe as mp
+    from mediapipe.tasks import python as mp_python
+    from mediapipe.tasks.python import vision as mp_vision
 except ImportError:
     sys.exit("mediapipe missing: pip install mediapipe")
 
@@ -66,8 +68,21 @@ def detect_union_face_box(video: Path, sample_stride: int = 5,
                           min_conf: float = 0.5) -> tuple[np.ndarray, list]:
     """Scan the video, detect the face every `sample_stride` frames, and return
     the union bounding box (x0, y0, x1, y1) in pixels plus per-sample boxes."""
-    detector = mp.solutions.face_detection.FaceDetection(
-        model_selection=1, min_detection_confidence=min_conf)  # model 1 = full range
+    import urllib.request, tempfile, os
+
+    # Download the MediaPipe face detector model if needed
+    model_path = Path(tempfile.gettempdir()) / "blaze_face_short_range.tflite"
+    if not model_path.exists():
+        print("Downloading MediaPipe face detector model...")
+        urllib.request.urlretrieve(
+            "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+            model_path)
+
+    base_opts = mp_python.BaseOptions(model_asset_path=str(model_path))
+    det_opts = mp_vision.FaceDetectorOptions(
+        base_options=base_opts,
+        min_detection_confidence=min_conf)
+    detector = mp_vision.FaceDetector.create_from_options(det_opts)
 
     cap = cv2.VideoCapture(str(video))
     if not cap.isOpened():
@@ -85,13 +100,14 @@ def detect_union_face_box(video: Path, sample_stride: int = 5,
             break
         if idx % sample_stride == 0:
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            result = detector.process(rgb)
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+            result = detector.detect(mp_image)
             if result.detections:
                 d = max(result.detections,
-                        key=lambda d: d.location_data.relative_bounding_box.width)
-                bb = d.location_data.relative_bounding_box
-                x0, y0 = bb.xmin * w, bb.ymin * h
-                x1, y1 = x0 + bb.width * w, y0 + bb.height * h
+                        key=lambda d: d.bounding_box.width)
+                bb = d.bounding_box
+                x0, y0 = float(bb.origin_x), float(bb.origin_y)
+                x1, y1 = x0 + float(bb.width), y0 + float(bb.height)
                 union[0] = min(union[0], x0)
                 union[1] = min(union[1], y0)
                 union[2] = max(union[2], x1)
