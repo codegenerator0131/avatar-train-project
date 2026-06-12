@@ -1,0 +1,36 @@
+# Claude
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.venv/
+*.egg-info/
+
+# Data (large files — don't commit)
+data/
+output/
+
+# MediaPipe downloaded models
+*.tflite
+*.task
+
+# FLAME model (license restricts redistribution)
+*.pkl
+
+# Logs / tensorboard
+runs/
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
