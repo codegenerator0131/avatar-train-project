@@ -182,13 +182,11 @@ else
     "$VHAP_PIP" install tyro pyyaml "numpy==1.22.3" "matplotlib==3.8.0" scipy pillow \
         opencv-python ffmpeg-python colour-science tensorboard trimesh \
         dlib pandas gdown face-alignment joblib dearpygui
-    # BackgroundMattingV2 is imported as a local module, not a pip package — clone next to vhap
+    # BackgroundMattingV2 — clone ShenhanQian's fork and pip install it
     if [ ! -d "$VHAP_DIR/BackgroundMattingV2" ]; then
         git clone https://github.com/ShenhanQian/BackgroundMattingV2.git "$VHAP_DIR/BackgroundMattingV2"
     fi
-    # Add vhap dir to Python path so local modules (BackgroundMattingV2, STAR etc) are importable
-    SITE_PACKAGES="$VHAP_ENV_DIR/lib/python3.10/site-packages"
-    echo "$VHAP_DIR" > "$SITE_PACKAGES/vhap_local.pth"
+    "$VHAP_PIP" install "$VHAP_DIR/BackgroundMattingV2/"
     "$VHAP_PIP" install --no-build-isolation -e "$VHAP_DIR/" --no-deps
     conda deactivate
     echo "  conda env 'vhap' ready."
