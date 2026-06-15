@@ -48,9 +48,11 @@ def _stub_chumpy():
 
     ch.__version__ = "0.70"
     sys.modules.setdefault("chumpy", ch)
-    # Also stub sub-modules referenced by some FLAME variants
+    # Stub sub-modules — each must also expose Ch so pickle can find it
     for sub in ["ch", "utils", "reordering"]:
-        sys.modules.setdefault(f"chumpy.{sub}", types.ModuleType(f"chumpy.{sub}"))
+        mod = types.ModuleType(f"chumpy.{sub}")
+        mod.Ch = _Ch
+        sys.modules.setdefault(f"chumpy.{sub}", mod)
 
 _stub_chumpy()
 
