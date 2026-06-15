@@ -68,7 +68,7 @@ That's it. On a new machine, `start.sh` detects missing setup and runs `setup_li
 3. Main Python venv + all dependencies (PyTorch cu126, chumpy, mediapipe, etc.)
 4. VHAP submodule (`git submodule add`) + dedicated `vhap` conda env with nvdiffrast
 
-**Prerequisite:** [Miniconda](https://docs.conda.io/en/latest/miniconda.html) must be installed before running setup (needed for the VHAP conda env). NVIDIA driver must also be installed (`nvidia-smi` should work).
+**Prerequisite:** NVIDIA driver must be installed (`nvidia-smi` should work). Everything else — including Miniconda — is installed automatically by `setup_linux.sh`.
 
 ### Required FLAME assets
 
