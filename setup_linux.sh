@@ -142,6 +142,8 @@ else
     rm -f "$MINICONDA_SH"
     source "$MINICONDA_DIR/etc/profile.d/conda.sh"
     conda init bash
+    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
     echo "  Miniconda installed at $MINICONDA_DIR"
 fi
 
