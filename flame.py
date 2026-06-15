@@ -19,30 +19,35 @@ import torch
 import torch.nn as nn
 
 
-# FLAME pkl files were saved with chumpy arrays. We use a custom Unpickler
-# that redirects every chumpy class to a plain numpy array, so chumpy never
-# needs to be installed.
-class _ChumpyFreeUnpickler(pickle.Unpickler):
-    """Replaces any chumpy type with a plain numpy ndarray during unpickling."""
+class _Ch(np.ndarray):
+    """Chumpy array stub — a plain ndarray that pickle can reconstruct via NEWOBJ."""
+    def __new__(cls, *args, **kwargs):
+        return np.array([]).view(cls)
 
-    class _AnyToArray:
-        """Placeholder that converts itself to ndarray when called."""
-        def __init__(self, *a, **kw):
-            self._data = np.array(a[0]) if a else np.array([])
-        def __array__(self, dtype=None):
-            return self._data if dtype is None else self._data.astype(dtype)
-
-    def find_class(self, module, name):
-        if module.startswith("chumpy"):
-            # Return a factory that wraps whatever data pickle passes in
-            # and produces a plain numpy array.
-            return lambda *a, **kw: np.array(a[0]) if a else np.zeros(1)
-        return super().find_class(module, name)
+    def __array_finalize__(self, obj):
+        pass
 
 
 def _load_flame_pkl(path: str) -> dict:
+    import sys, types
+
+    # Register stub modules so pickle can import chumpy.* without the package
+    for mod_name in ["chumpy", "chumpy.ch", "chumpy.utils", "chumpy.reordering"]:
+        if mod_name not in sys.modules:
+            mod = types.ModuleType(mod_name)
+            mod.Ch = _Ch
+            sys.modules[mod_name] = mod
+
     with open(path, "rb") as f:
-        return _ChumpyFreeUnpickler(f, encoding="latin1").load()
+        data = pickle.load(f, encoding="latin1")
+
+    # Convert any _Ch stubs to plain numpy arrays recursively
+    def _to_np(v):
+        if isinstance(v, _Ch):
+            return np.array(v)
+        return v
+
+    return {k: _to_np(v) for k, v in data.items()}
 
 
 def _to_tensor(x, dtype=torch.float32, device="cpu"):
