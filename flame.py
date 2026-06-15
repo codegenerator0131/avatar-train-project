@@ -196,7 +196,8 @@ class FLAME(nn.Module):
                 # Try to load the MediaPipe index map (which of 478 MP points each row corresponds to)
                 mp_idx = emb.get("lmk_mp_idx",
                           emb.get("mp_idx",
-                          emb.get("mediapipe_idx", None)))
+                          emb.get("mediapipe_idx",
+                          emb.get("landmark_indices", None))))
                 self.lmk_mp_idx = np.array(mp_idx).astype(np.int64) if mp_idx is not None else None
                 print(f"  Loaded MediaPipe embedding: {self.n_landmarks} landmarks "
                       f"| keys: {list(emb.keys())}"
