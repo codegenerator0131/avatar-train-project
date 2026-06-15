@@ -42,7 +42,7 @@ class _ChumpyFreeUnpickler(pickle.Unpickler):
 
 def _load_flame_pkl(path: str) -> dict:
     with open(path, "rb") as f:
-        return _ChumpyFreeUnpickler(f).load()
+        return _ChumpyFreeUnpickler(f, encoding="latin1").load()
 
 
 def _to_tensor(x, dtype=torch.float32, device="cpu"):
