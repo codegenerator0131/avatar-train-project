@@ -11,4 +11,3 @@ einops
 trimesh
 ninja
 mediapipe
-chumpy

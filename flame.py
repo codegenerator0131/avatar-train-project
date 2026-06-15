@@ -12,11 +12,47 @@ alignment between detected 2D landmarks and the 3D model.
 from __future__ import annotations
 
 import pickle
+import sys
+import types
 from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn as nn
+
+
+# FLAME pkl files were saved with chumpy arrays. Stub it out so pickle can
+# deserialize without needing the actual chumpy package installed.
+def _stub_chumpy():
+    ch = types.ModuleType("chumpy")
+
+    class _Ch(np.ndarray):
+        """Minimal chumpy array stub — just a numpy array."""
+        def __new__(cls, *args, **kwargs):
+            if args and isinstance(args[0], np.ndarray):
+                return np.asarray(args[0]).view(cls)
+            return np.array(*args, **kwargs).view(cls)
+        def __reduce__(self):
+            return (np.array, (np.asarray(self),))
+
+    ch.Ch = _Ch
+    ch.array = _Ch
+
+    class _Where:
+        def __init__(self, *a, **kw): pass
+        def __call__(self, *a, **kw): return np.zeros(1)
+
+    for name in ["maximum", "minimum", "abs", "sum", "dot", "concatenate",
+                 "vstack", "hstack", "zeros", "ones", "eye"]:
+        setattr(ch, name, getattr(np, name, _Where()))
+
+    ch.__version__ = "0.70"
+    sys.modules.setdefault("chumpy", ch)
+    # Also stub sub-modules referenced by some FLAME variants
+    for sub in ["ch", "utils", "reordering"]:
+        sys.modules.setdefault(f"chumpy.{sub}", types.ModuleType(f"chumpy.{sub}"))
+
+_stub_chumpy()
 
 
 def _to_tensor(x, dtype=torch.float32, device="cpu"):
