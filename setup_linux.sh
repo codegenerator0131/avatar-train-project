@@ -165,23 +165,24 @@ if conda env list | grep -q "^vhap "; then
 else
     echo "  Creating conda env 'vhap'..."
     conda create --name vhap -y python=3.10
-    conda activate vhap
-    conda install -y pip
-    pip install --upgrade pip setuptools wheel
-    conda install -y -c "nvidia/label/cuda-12.1.1" cuda-toolkit ninja cmake
-    ln -sf "$CONDA_PREFIX/lib" "$CONDA_PREFIX/lib64" 2>/dev/null || true
-    conda env config vars set CUDA_HOME="$CONDA_PREFIX"
-    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-    pip install hatchling
-    pip install --no-build-isolation git+https://github.com/mattloper/chumpy.git
-    pip install nvdiffrast@git+https://github.com/ShenhanQian/nvdiffrast@backface-culling --force-reinstall
+    # Use full path to vhap env pip/conda — conda activate doesn't persist in subshells
+    VHAP_PIP="$HOME/miniconda3/envs/vhap/bin/pip"
+    VHAP_CONDA="$HOME/miniconda3/bin/conda"
+    VHAP_PYTHON="$HOME/miniconda3/envs/vhap/bin/python"
+    VHAP_ENV_DIR="$HOME/miniconda3/envs/vhap"
+
+    "$VHAP_PIP" install --upgrade pip setuptools wheel editables hatchling
+    "$VHAP_CONDA" install -y -n vhap -c "nvidia/label/cuda-12.1.1" cuda-toolkit ninja cmake
+    ln -sf "$VHAP_ENV_DIR/lib" "$VHAP_ENV_DIR/lib64" 2>/dev/null || true
+    "$VHAP_PIP" install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+    "$VHAP_PIP" install --no-build-isolation git+https://github.com/mattloper/chumpy.git
+    "$VHAP_PIP" install "nvdiffrast@git+https://github.com/ShenhanQian/nvdiffrast@backface-culling" --force-reinstall
     rm -rf ~/.cache/torch_extensions/*/nvdiffrast* 2>/dev/null || true
-    # Install VHAP without pytorch3d (it uses nvdiffrast for rasterization, not pytorch3d)
-    pip install --no-build-isolation -e "$VHAP_DIR/" --no-deps
-    pip install --no-build-isolation -r "$VHAP_DIR/requirements.txt" 2>/dev/null || \
-        pip install tyro pyyaml "numpy==1.22.3" "matplotlib==3.8.0" scipy pillow \
-            opencv-python ffmpeg-python colour-science tensorboard trimesh \
-            dlib pandas gdown face-alignment joblib dearpygui
+    # Install VHAP deps manually (skip pytorch3d — not needed, uses nvdiffrast instead)
+    "$VHAP_PIP" install tyro pyyaml "numpy==1.22.3" "matplotlib==3.8.0" scipy pillow \
+        opencv-python ffmpeg-python colour-science tensorboard trimesh \
+        dlib pandas gdown face-alignment joblib dearpygui
+    "$VHAP_PIP" install --no-build-isolation -e "$VHAP_DIR/" --no-deps
     conda deactivate
     echo "  conda env 'vhap' ready."
 fi

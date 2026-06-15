@@ -11,14 +11,12 @@ if [ ! -f "$SCRIPT_DIR/venv/bin/activate" ] || [ ! -f "$SCRIPT_DIR/vhap/vhap/pre
     echo ""
 fi
 
-# --- Initialize conda in this shell session
-CONDA_BASE="$(conda info --base 2>/dev/null)" || {
-    echo "ERROR: conda not found. Install Miniconda then re-run: bash setup_linux.sh"
+# --- Use vhap env python directly (conda activate unreliable in subshells)
+VHAP_PYTHON="$HOME/miniconda3/envs/vhap/bin/python"
+if [ ! -f "$VHAP_PYTHON" ]; then
+    echo "ERROR: vhap conda env not found. Run: bash setup_linux.sh"
     exit 1
-}
-# shellcheck disable=SC1091
-source "$CONDA_BASE/etc/profile.d/conda.sh"
-conda activate vhap
+fi
 
 echo "================================================"
 echo "  Stage 2: FLAME Tracking (VHAP)"
@@ -44,14 +42,14 @@ NERF_DIR="$SCRIPT_DIR/data/processed/${ID}_nerf"
 echo ""
 echo "Step 1/3 — Preprocessing video (frame extraction + background matting)..."
 echo ""
-python "$VHAP_DIR/vhap/preprocess_video.py" \
+"$VHAP_PYTHON" "$VHAP_DIR/vhap/preprocess_video.py" \
     --input "$VIDEO" \
     --matting_method robust_video_matting
 
 echo ""
 echo "Step 2/3 — Photometric FLAME tracking..."
 echo ""
-python "$VHAP_DIR/vhap/track.py" \
+"$VHAP_PYTHON" "$VHAP_DIR/vhap/track.py" \
     --data.root_folder "$SCRIPT_DIR/data/source/input_videos" \
     --exp.output_folder "$TRACKED_DIR" \
     --data.sequence "$ID"
@@ -59,7 +57,7 @@ python "$VHAP_DIR/vhap/track.py" \
 echo ""
 echo "Step 3/3 — Exporting as NeRF/3DGS dataset..."
 echo ""
-python "$VHAP_DIR/vhap/export_as_nerf_dataset.py" \
+"$VHAP_PYTHON" "$VHAP_DIR/vhap/export_as_nerf_dataset.py" \
     --src_folder "$TRACKED_DIR" \
     --tgt_folder "$NERF_DIR"
 
