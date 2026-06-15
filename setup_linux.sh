@@ -164,20 +164,24 @@ if conda env list | grep -q "^vhap "; then
     echo "  [skip] conda env 'vhap' already exists"
 else
     echo "  Creating conda env 'vhap'..."
-    conda create --name vhap -y python=3.9
+    conda create --name vhap -y python=3.10
     conda activate vhap
     conda install -y pip
-    pip install --upgrade pip
+    pip install --upgrade pip setuptools wheel
     conda install -y -c "nvidia/label/cuda-12.1.1" cuda-toolkit ninja cmake
     ln -sf "$CONDA_PREFIX/lib" "$CONDA_PREFIX/lib64" 2>/dev/null || true
     conda env config vars set CUDA_HOME="$CONDA_PREFIX"
-    pip install torch==2.1.0 torchvision==0.16.0 --index-url https://download.pytorch.org/whl/cu121
+    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
     pip install hatchling
     pip install --no-build-isolation git+https://github.com/mattloper/chumpy.git
-    # Install pytorch3d from pre-built conda wheel (avoids compiling from source)
-    conda install -y -c pytorch3d pytorch3d
-    pip install git+https://github.com/ShenhanQian/nvdiffrast.git
-    pip install --no-build-isolation -e "$VHAP_DIR/"
+    pip install nvdiffrast@git+https://github.com/ShenhanQian/nvdiffrast@backface-culling --force-reinstall
+    rm -rf ~/.cache/torch_extensions/*/nvdiffrast* 2>/dev/null || true
+    # Install VHAP without pytorch3d (it uses nvdiffrast for rasterization, not pytorch3d)
+    pip install --no-build-isolation -e "$VHAP_DIR/" --no-deps
+    pip install --no-build-isolation -r "$VHAP_DIR/requirements.txt" 2>/dev/null || \
+        pip install tyro pyyaml "numpy==1.22.3" "matplotlib==3.8.0" scipy pillow \
+            opencv-python ffmpeg-python colour-science tensorboard trimesh \
+            dlib pandas gdown face-alignment joblib dearpygui
     conda deactivate
     echo "  conda env 'vhap' ready."
 fi
