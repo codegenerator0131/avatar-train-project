@@ -129,23 +129,25 @@ mkdir -p "$SCRIPT_DIR/data/capture" "$SCRIPT_DIR/data/flame" "$SCRIPT_DIR/data/s
 
 echo "== [5/6] Miniconda =="
 MINICONDA_DIR="$HOME/miniconda3"
-if command -v conda >/dev/null 2>&1; then
-    echo "  [skip] conda already present: $(conda --version)"
-elif [ -f "$MINICONDA_DIR/bin/conda" ]; then
-    echo "  [skip] Miniconda already installed at $MINICONDA_DIR"
-    source "$MINICONDA_DIR/etc/profile.d/conda.sh"
-else
+if [ ! -f "$MINICONDA_DIR/bin/conda" ]; then
     echo "  Installing Miniconda..."
     MINICONDA_SH="/tmp/miniconda.sh"
     wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O "$MINICONDA_SH"
     bash "$MINICONDA_SH" -b -p "$MINICONDA_DIR"
     rm -f "$MINICONDA_SH"
-    source "$MINICONDA_DIR/etc/profile.d/conda.sh"
-    conda init bash
-    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
-    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
     echo "  Miniconda installed at $MINICONDA_DIR"
+else
+    echo "  [skip] Miniconda already installed at $MINICONDA_DIR"
 fi
+
+# Always source conda into this shell session
+# shellcheck disable=SC1090
+source "$MINICONDA_DIR/etc/profile.d/conda.sh"
+conda init bash >/dev/null 2>&1 || true
+
+# Always accept TOS (safe to run multiple times, no-op if already accepted)
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main 2>/dev/null || true
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r 2>/dev/null || true
 
 echo "== [6/6] VHAP submodule (Stage 2 tracker) =="
 VHAP_DIR="$SCRIPT_DIR/vhap"
@@ -158,20 +160,18 @@ else
     git submodule update --init --recursive
 fi
 
-if conda env list 2>/dev/null | grep -q "^vhap "; then
+if conda env list | grep -q "^vhap "; then
     echo "  [skip] conda env 'vhap' already exists"
 else
-    # shellcheck disable=SC1090
-    source "$(conda info --base)/etc/profile.d/conda.sh"
     echo "  Creating conda env 'vhap'..."
     conda create --name vhap -y python=3.10
-        conda activate vhap
-        conda install -y -c "nvidia/label/cuda-12.1.1" cuda-toolkit ninja cmake
-        ln -sf "$CONDA_PREFIX/lib" "$CONDA_PREFIX/lib64" 2>/dev/null || true
-        conda env config vars set CUDA_HOME="$CONDA_PREFIX"
-        pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-        pip install git+https://github.com/ShenhanQian/nvdiffrast.git
-        pip install -e "$VHAP_DIR/"
+    conda activate vhap
+    conda install -y -c "nvidia/label/cuda-12.1.1" cuda-toolkit ninja cmake
+    ln -sf "$CONDA_PREFIX/lib" "$CONDA_PREFIX/lib64" 2>/dev/null || true
+    conda env config vars set CUDA_HOME="$CONDA_PREFIX"
+    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+    pip install git+https://github.com/ShenhanQian/nvdiffrast.git
+    pip install -e "$VHAP_DIR/"
     conda deactivate
     echo "  conda env 'vhap' ready."
 fi
