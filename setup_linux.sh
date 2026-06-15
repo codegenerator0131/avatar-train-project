@@ -172,9 +172,28 @@ else
     VHAP_ENV_DIR="$HOME/miniconda3/envs/vhap"
 
     "$VHAP_PIP" install --upgrade pip setuptools wheel editables hatchling
-    "$VHAP_CONDA" install -y -n vhap -c "nvidia/label/cuda-12.1.1" cuda-toolkit ninja cmake
+    # Auto-detect CUDA version and pick matching torch + conda cuda-toolkit wheels
+    CUDA_VER="$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9]+\.[0-9]+')" || CUDA_VER=""
+    CUDA_MAJOR="$(echo "$CUDA_VER" | cut -d. -f1)"
+    CUDA_MINOR="$(echo "$CUDA_VER" | cut -d. -f2)"
+    if [ -z "$CUDA_MAJOR" ]; then
+        echo "  WARNING: nvcc not found, defaulting to cu126 wheels"
+        TORCH_CUDA="cu126"
+        CONDA_CUDA_CHANNEL="nvidia/label/cuda-12.6.0"
+    elif [ "$CUDA_MAJOR" -ge 13 ] || { [ "$CUDA_MAJOR" -eq 12 ] && [ "$CUDA_MINOR" -ge 6 ]; }; then
+        TORCH_CUDA="cu126"
+        CONDA_CUDA_CHANNEL="nvidia/label/cuda-12.6.0"
+    elif [ "$CUDA_MAJOR" -eq 12 ] && [ "$CUDA_MINOR" -ge 1 ]; then
+        TORCH_CUDA="cu121"
+        CONDA_CUDA_CHANNEL="nvidia/label/cuda-12.1.1"
+    else
+        TORCH_CUDA="cu118"
+        CONDA_CUDA_CHANNEL="nvidia/label/cuda-11.8.0"
+    fi
+    echo "  Detected CUDA $CUDA_VER — using torch $TORCH_CUDA wheels"
+    "$VHAP_CONDA" install -y -n vhap -c "$CONDA_CUDA_CHANNEL" cuda-toolkit ninja cmake
     ln -sf "$VHAP_ENV_DIR/lib" "$VHAP_ENV_DIR/lib64" 2>/dev/null || true
-    "$VHAP_PIP" install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+    "$VHAP_PIP" install torch torchvision --index-url "https://download.pytorch.org/whl/$TORCH_CUDA"
     "$VHAP_PIP" install --no-build-isolation git+https://github.com/mattloper/chumpy.git
     "$VHAP_PIP" install "nvdiffrast@git+https://github.com/ShenhanQian/nvdiffrast@backface-culling" --force-reinstall
     rm -rf ~/.cache/torch_extensions/*/nvdiffrast* 2>/dev/null || true
