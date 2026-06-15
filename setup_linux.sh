@@ -182,6 +182,7 @@ else
     "$VHAP_PIP" install tyro pyyaml "numpy==1.22.3" "matplotlib==3.8.0" scipy pillow \
         opencv-python ffmpeg-python colour-science tensorboard trimesh \
         dlib pandas gdown face-alignment joblib dearpygui
+    "$VHAP_PIP" install git+https://github.com/PeterL1n/BackgroundMattingV2.git
     "$VHAP_PIP" install --no-build-isolation -e "$VHAP_DIR/" --no-deps
     conda deactivate
     echo "  conda env 'vhap' ready."
