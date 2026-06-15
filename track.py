@@ -17,6 +17,7 @@ Output: data/processed/<name>/tracking.json
 Usage:
   python track.py --dataset data/processed/take1 \
                   --flame  data/flame/flame2023.pkl \
+                  --lm-embed data/flame/mediapipe_landmark_embedding.npz \
                   --device cuda
 
 Requirements:
@@ -173,7 +174,7 @@ class FrameFitter:
 
         # Ground-truth landmarks on device
         gt_lm = torch.from_numpy(detected_lm).float().to(dev).unsqueeze(0)  # (1, L, 2)
-        n_flame_lm = self.flame.landmark_indices.shape[0] if self.flame.landmark_indices is not None else 68
+        n_flame_lm = self.flame.n_landmarks
         n_gt = gt_lm.shape[1]
         # Use only min(n_flame_lm, n_gt) landmarks
         n_lm = min(n_flame_lm, n_gt)
@@ -270,7 +271,7 @@ def fit_shape(flame_model: FLAME,
 
         for _, lm_np in valid:
             gt = torch.from_numpy(lm_np).float().to(device).unsqueeze(0)
-            n_flame_lm = flame_model.landmark_indices.shape[0] if flame_model.landmark_indices is not None else 68
+            n_flame_lm = flame_model.n_landmarks
             n_lm = min(n_flame_lm, gt.shape[1])
             gt = gt[:, :n_lm, :]
 
@@ -335,6 +336,9 @@ def main() -> None:
                     help="Path to Stage 1 output dir (e.g. data/processed/take1)")
     ap.add_argument("--flame", required=True, type=Path,
                     help="Path to flame2023.pkl")
+    ap.add_argument("--lm-embed", type=Path,
+                    default=None,
+                    help="Path to mediapipe_landmark_embedding.npz (recommended)")
     ap.add_argument("--device", default="cuda",
                     help="cuda or cpu (default: cuda)")
     ap.add_argument("--n-shape", type=int, default=100,
@@ -373,8 +377,17 @@ def main() -> None:
         device = "cpu"
 
     # ---- Load FLAME -------------------------------------------------------
+    # Auto-detect landmark embedding if not specified
+    lm_embed = args.lm_embed
+    if lm_embed is None:
+        candidate = args.flame.parent / "mediapipe_landmark_embedding.npz"
+        if candidate.exists():
+            lm_embed = candidate
+            print(f"Auto-detected landmark embedding: {lm_embed}")
+
     print(f"Loading FLAME model from {args.flame}...")
-    flame = FLAME(args.flame, n_shape=args.n_shape, n_expr=args.n_expr,
+    flame = FLAME(args.flame, lm_embed_path=lm_embed,
+                  n_shape=args.n_shape, n_expr=args.n_expr,
                   device=device).to(device)
     flame.eval()
 

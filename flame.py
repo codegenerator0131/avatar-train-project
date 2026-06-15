@@ -1,19 +1,13 @@
 """
 FLAME 2023 forward model.
 
-Loads flame2023.pkl and exposes a differentiable forward pass:
+Loads flame2023.pkl and mediapipe_landmark_embedding.npz and exposes a
+differentiable forward pass:
   vertices, landmarks = FLAME(shape, expression, pose, jaw_pose)
 
-Expected pkl keys (FLAME 2023):
-  v_template      (5023, 3)   mean neutral mesh
-  shapedirs       (5023*3, 300) shape PCA basis  [or (5023, 3, 300)]
-  expressiondirs  (5023*3, 100) expression PCA basis
-  posedirs        (5023*3, 36)  pose corrective blendshapes (9 joints * 4 pose params)
-  J_regressor     (5, 5023)    joint regressor (5 joints for FLAME)
-  weights         (5023, 5)    LBS skinning weights
-  kintree_table   (2, 5)       joint hierarchy
-  faces           (9976, 3)    triangle indices (int32)
-  landmark_indices (105,)      vertex indices for 105 landmarks (or 68/51 depending on version)
+The MediaPipe landmark embedding maps 478 MediaPipe face mesh points to
+FLAME vertices via barycentric coordinates on faces — giving precise
+alignment between detected 2D landmarks and the 3D model.
 """
 from __future__ import annotations
 
@@ -53,13 +47,13 @@ def lbs(vertices: torch.Tensor, pose: torch.Tensor,
         lbs_weights: torch.Tensor, pose_dirs: torch.Tensor) -> torch.Tensor:
     """
     Linear Blend Skinning.
-    vertices : (B, V, 3)
-    pose     : (B, J*3)  axis-angle per joint
-    J        : (B, J, 3) joint locations
-    parents  : (J,)      parent indices (-1 for root)
+    vertices   : (B, V, 3)
+    pose       : (B, J*3)  axis-angle per joint
+    J          : (B, J, 3) joint locations
+    parents    : (J,)      parent indices (-1 for root)
     lbs_weights: (V, J)
     pose_dirs  : (V*3, (J-1)*9)
-    Returns  : (B, V, 3)
+    Returns    : (B, V, 3)
     """
     B, V, _ = vertices.shape
     J_n = J.shape[1]
@@ -67,135 +61,177 @@ def lbs(vertices: torch.Tensor, pose: torch.Tensor,
     rot_mats = batch_rodrigues(pose.reshape(-1, 3)).reshape(B, J_n, 3, 3)
 
     # Pose corrective blendshapes (exclude root joint)
-    pose_feature = (rot_mats[:, 1:, :, :] - torch.eye(3, device=vertices.device)).reshape(B, -1)
-    pose_offsets = torch.einsum('bi,vij->bvj',
-                                pose_feature,
-                                pose_dirs.reshape(V, 3, -1).permute(0, 2, 1))
-    # pose_dirs shape: (V*3, (J-1)*9)  → reshape to (V, 3, (J-1)*9)
-    # einsum: (B, (J-1)*9) x (V, (J-1)*9, 3) → (B, V, 3)
-    pd = pose_dirs.reshape(V, 3, -1)            # (V, 3, K)
-    pose_offsets = torch.einsum('bk,vck->bvc', pose_feature, pd)  # (B, V, 3)
-
+    pose_feature = (rot_mats[:, 1:] - torch.eye(3, device=vertices.device)).reshape(B, -1)
+    pd = pose_dirs.reshape(V, 3, -1)                                   # (V, 3, K)
+    pose_offsets = torch.einsum('bk,vck->bvc', pose_feature, pd)       # (B, V, 3)
     verts_posed = vertices + pose_offsets
 
     # Forward kinematics
-    J_transformed = []
-    R_global = []
+    J_transformed, R_global = [], []
     for j in range(J_n):
         if parents[j] < 0:
-            R_j = rot_mats[:, j]           # (B, 3, 3)
-            t_j = J[:, j]                  # (B, 3)
+            R_j = rot_mats[:, j]
+            t_j = J[:, j]
         else:
-            R_j = torch.bmm(R_global[parents[j]], rot_mats[:, j])
-            t_j = torch.bmm(R_global[parents[j]], (J[:, j] - J[:, parents[j]]).unsqueeze(-1)).squeeze(-1) + J_transformed[parents[j]]
+            p = parents[j].item()
+            R_j = torch.bmm(R_global[p], rot_mats[:, j])
+            t_j = (torch.bmm(R_global[p],
+                              (J[:, j] - J[:, p]).unsqueeze(-1)).squeeze(-1)
+                   + J_transformed[p])
         J_transformed.append(t_j)
         R_global.append(R_j)
 
     J_transformed = torch.stack(J_transformed, dim=1)   # (B, J, 3)
-    R_global = torch.stack(R_global, dim=1)              # (B, J, 3, 3)
+    R_global      = torch.stack(R_global,      dim=1)   # (B, J, 3, 3)
 
-    # Build 4x4 transformation matrices
+    # 4x4 world transforms
     T = torch.zeros(B, J_n, 4, 4, device=vertices.device, dtype=vertices.dtype)
     T[:, :, :3, :3] = R_global
-    T[:, :, :3, 3] = J_transformed - torch.bmm(R_global, J[:, :, :, None]).squeeze(-1)
-    T[:, :, 3, 3] = 1.0
+    T[:, :, :3,  3] = J_transformed - torch.bmm(
+        R_global, J[:, :, :, None]).squeeze(-1)
+    T[:, :,  3,  3] = 1.0
 
     # Blend
-    W = lbs_weights.unsqueeze(0).expand(B, -1, -1)                # (B, V, J)
-    T_blend = torch.einsum('bvj,bjkl->bvkl', W, T)                # (B, V, 4, 4)
-    ones = torch.ones(B, V, 1, device=vertices.device, dtype=vertices.dtype)
-    v_h = torch.cat([verts_posed, ones], dim=2).unsqueeze(-1)      # (B, V, 4, 1)
-    v_out = torch.matmul(T_blend, v_h).squeeze(-1)[:, :, :3]      # (B, V, 3)
-    return v_out
+    W       = lbs_weights.unsqueeze(0).expand(B, -1, -1)           # (B, V, J)
+    T_blend = torch.einsum('bvj,bjkl->bvkl', W, T)                 # (B, V, 4, 4)
+    ones    = torch.ones(B, V, 1, device=vertices.device, dtype=vertices.dtype)
+    v_h     = torch.cat([verts_posed, ones], dim=2).unsqueeze(-1)   # (B, V, 4, 1)
+    return torch.matmul(T_blend, v_h).squeeze(-1)[:, :, :3]        # (B, V, 3)
 
 
 class FLAME(nn.Module):
     """
-    Differentiable FLAME 2023 head model.
+    Differentiable FLAME 2023 head model with MediaPipe landmark support.
 
     Parameters
     ----------
-    model_path : path to flame2023.pkl
-    n_shape    : number of shape PCA components to use (default 100)
-    n_expr     : number of expression PCA components to use (default 50)
-    device     : 'cuda' or 'cpu'
+    model_path   : path to flame2023.pkl
+    lm_embed_path: path to mediapipe_landmark_embedding.npz
+    n_shape      : number of shape PCA components (default 100)
+    n_expr       : number of expression PCA components (default 50)
+    device       : 'cuda' or 'cpu'
     """
 
-    def __init__(self, model_path: str | Path, n_shape: int = 100,
-                 n_expr: int = 50, device: str = "cuda"):
+    def __init__(self, model_path: str | Path,
+                 lm_embed_path: str | Path | None = None,
+                 n_shape: int = 100, n_expr: int = 50,
+                 device: str = "cuda"):
         super().__init__()
         self.device = device
         self.n_shape = n_shape
-        self.n_expr = n_expr
+        self.n_expr  = n_expr
 
+        # ---- Load FLAME pkl ----------------------------------------------
         with open(model_path, "rb") as f:
             flame = pickle.load(f, encoding="latin1")
 
-        # Detect layout of shapedirs / expressiondirs
-        # FLAME 2023 may store them as (V, 3, K) or (V*3, K)
         def _load_basis(arr, n):
-            if arr.ndim == 3:
-                # (V, 3, K) → (V*3, K)
-                V, _, K = arr.shape
-                arr = arr.reshape(V * 3, K)
+            arr = np.array(arr)
+            if arr.ndim == 3:                      # (V, 3, K) → (V*3, K)
+                arr = arr.reshape(arr.shape[0] * 3, arr.shape[2])
             return _to_tensor(arr[:, :n], device=device)
 
-        v_template = _to_tensor(flame["v_template"], device=device)   # (V, 3)
+        v_template = _to_tensor(np.array(flame["v_template"]), device=device)
         V = v_template.shape[0]
 
         self.register_buffer("v_template", v_template)
         self.register_buffer("shapedirs",
-            _load_basis(np.array(flame["shapedirs"]), n_shape))        # (V*3, n_shape)
+            _load_basis(flame["shapedirs"], n_shape))
         self.register_buffer("expressiondirs",
-            _load_basis(np.array(flame.get("expressiondirs",
-                                           flame.get("expressionblendshapes",
-                                                     np.zeros((V*3, 100))))), n_expr))
+            _load_basis(flame.get("expressiondirs",
+                        flame.get("expressionblendshapes",
+                        np.zeros((V * 3, 100)))), n_expr))
 
-        # Pose corrective dirs: (V*3, K) where K = (n_joints-1)*9
         posedirs = np.array(flame.get("posedirs", np.zeros((V * 3, 36))))
         self.register_buffer("posedirs", _to_tensor(posedirs, device=device))
 
-        # Joint regressor: (J, V)
-        J_reg = np.array(flame["J_regressor"].todense()
-                         if hasattr(flame["J_regressor"], "todense")
-                         else flame["J_regressor"])
+        J_reg = flame["J_regressor"]
+        if hasattr(J_reg, "todense"):
+            J_reg = np.array(J_reg.todense())
+        else:
+            J_reg = np.array(J_reg)
         self.register_buffer("J_regressor", _to_tensor(J_reg, device=device))
 
-        # LBS weights: (V, J)
         self.register_buffer("lbs_weights",
             _to_tensor(np.array(flame["weights"]), device=device))
 
-        # Joint hierarchy
-        kintree = np.array(flame["kintree_table"])                     # (2, J)
-        parents = kintree[0].astype(np.int64)
+        kintree  = np.array(flame["kintree_table"])
+        parents  = kintree[0].astype(np.int64)
         parents[0] = -1
-        self.register_buffer("parents", torch.from_numpy(parents).to(device))
+        self.register_buffer("parents",
+            torch.from_numpy(parents).to(device))
 
-        # Face triangles
+        faces_key = "f" if "f" in flame else "faces"
         self.register_buffer("faces",
-            torch.from_numpy(np.array(flame["f"] if "f" in flame else flame["faces"])
-                             .astype(np.int64)).to(device))
-
-        # Landmark indices (may be 68, 105, or 468 depending on FLAME version)
-        if "landmark_indices" in flame:
-            lm_idx = np.array(flame["landmark_indices"]).astype(np.int64)
-        elif "lmk_faces_idx" in flame:
-            # Older format: landmark barycentric coords on faces
-            lm_idx = None
-            self._lmk_faces_idx = torch.from_numpy(
-                np.array(flame["lmk_faces_idx"])).to(device)
-            self._lmk_bary_coords = _to_tensor(
-                np.array(flame["lmk_bary_coords"]), device=device)
-        else:
-            lm_idx = None
-
-        if lm_idx is not None:
-            self.register_buffer("landmark_indices",
-                torch.from_numpy(lm_idx).to(device))
-        else:
-            self.landmark_indices = None
+            torch.from_numpy(np.array(flame[faces_key]).astype(np.int64)).to(device))
 
         self.n_joints = self.J_regressor.shape[0]
+
+        # ---- MediaPipe landmark embedding --------------------------------
+        # mediapipe_landmark_embedding.npz contains:
+        #   lmk_face_idx   (478,)    which face each landmark sits on
+        #   lmk_b_coords   (478, 3)  barycentric coords on that face
+        if lm_embed_path is not None and Path(lm_embed_path).exists():
+            emb = np.load(lm_embed_path, allow_pickle=True)
+            # Try common key names
+            face_idx  = emb.get("lmk_face_idx",
+                        emb.get("lmk_faces_idx",
+                        emb.get("face_idx", None)))
+            bary      = emb.get("lmk_b_coords",
+                        emb.get("lmk_bary_coords",
+                        emb.get("bary_coords", None)))
+
+            if face_idx is not None and bary is not None:
+                self.register_buffer("lmk_face_idx",
+                    torch.from_numpy(np.array(face_idx).astype(np.int64)).to(device))
+                self.register_buffer("lmk_bary_coords",
+                    _to_tensor(np.array(bary), device=device))
+                self.n_landmarks = int(self.lmk_face_idx.shape[0])
+                print(f"  Loaded MediaPipe embedding: {self.n_landmarks} landmarks")
+            else:
+                print(f"  WARNING: could not read embedding keys from {lm_embed_path}")
+                print(f"  Available keys: {list(emb.keys())}")
+                self._init_fallback_landmarks(flame, V, device)
+        else:
+            self._init_fallback_landmarks(flame, V, device)
+
+    def _init_fallback_landmarks(self, flame: dict, V: int, device: str) -> None:
+        """Fall back to vertex-index landmarks if embedding not available."""
+        self.lmk_face_idx   = None
+        self.lmk_bary_coords = None
+        if "landmark_indices" in flame:
+            idx = np.array(flame["landmark_indices"]).astype(np.int64)
+            self.register_buffer("landmark_indices",
+                torch.from_numpy(idx).to(device))
+            self.n_landmarks = int(idx.shape[0])
+            print(f"  Using vertex-index landmarks: {self.n_landmarks} landmarks")
+        elif "lmk_faces_idx" in flame:
+            self.register_buffer("lmk_face_idx",
+                torch.from_numpy(np.array(flame["lmk_faces_idx"]).astype(np.int64)).to(device))
+            self.register_buffer("lmk_bary_coords",
+                _to_tensor(np.array(flame["lmk_bary_coords"]), device=device))
+            self.n_landmarks = int(self.lmk_face_idx.shape[0])
+            print(f"  Using built-in barycentric landmarks: {self.n_landmarks} landmarks")
+        else:
+            self.n_landmarks = 68
+            print("  WARNING: no landmark info found, using first 68 vertices")
+
+    def get_landmarks(self, vertices: torch.Tensor) -> torch.Tensor:
+        """
+        Extract landmark positions from a posed mesh.
+        vertices : (B, V, 3)
+        Returns  : (B, L, 3)
+        """
+        if hasattr(self, "lmk_face_idx") and self.lmk_face_idx is not None:
+            # Barycentric interpolation: sample points on face triangles
+            B = vertices.shape[0]
+            face_verts = vertices[:, self.faces[self.lmk_face_idx], :]  # (B, L, 3, 3)
+            bc = self.lmk_bary_coords.unsqueeze(0).unsqueeze(-1)        # (1, L, 3, 1)
+            return (face_verts * bc).sum(dim=2)                          # (B, L, 3)
+        elif hasattr(self, "landmark_indices"):
+            return vertices[:, self.landmark_indices, :]
+        else:
+            return vertices[:, :self.n_landmarks, :]
 
     def forward(self, shape_params: torch.Tensor,
                 expression_params: torch.Tensor,
@@ -208,45 +244,31 @@ class FLAME(nn.Module):
         ----------
         shape_params      : (B, n_shape)
         expression_params : (B, n_expr)
-        global_pose       : (B, 3)  axis-angle head rotation
+        global_pose       : (B, 3)  axis-angle global head rotation
         jaw_pose          : (B, 3)  axis-angle jaw rotation
 
         Returns
         -------
         vertices  : (B, V, 3)
-        landmarks : (B, L, 3)  3D landmark positions
+        landmarks : (B, L, 3)
         """
         B = shape_params.shape[0]
         V = self.v_template.shape[0]
 
-        # Shape + expression blendshapes
-        shape_offset = torch.einsum("bi,ij->bj", shape_params,
-                                    self.shapedirs.T).reshape(B, V, 3)
-        expr_offset  = torch.einsum("bi,ij->bj", expression_params,
-                                    self.expressiondirs.T).reshape(B, V, 3)
-        vertices = self.v_template.unsqueeze(0) + shape_offset + expr_offset  # (B, V, 3)
+        shape_offset = torch.einsum("bi,ij->bj",
+                                    shape_params, self.shapedirs.T).reshape(B, V, 3)
+        expr_offset  = torch.einsum("bi,ij->bj",
+                                    expression_params, self.expressiondirs.T).reshape(B, V, 3)
+        vertices = self.v_template.unsqueeze(0) + shape_offset + expr_offset
 
-        # Joint locations
-        J = torch.einsum("jv,bvk->bjk", self.J_regressor, vertices)  # (B, J, 3)
+        J = torch.einsum("jv,bvk->bjk", self.J_regressor, vertices)
 
-        # Full pose: [global (3), jaw (3), zeros for remaining joints]
-        n_extra = self.n_joints - 2
-        zero_pose = torch.zeros(B, n_extra * 3, device=shape_params.device,
-                                dtype=shape_params.dtype)
-        pose = torch.cat([global_pose, jaw_pose, zero_pose], dim=1)   # (B, J*3)
+        n_extra   = self.n_joints - 2
+        zero_pose = torch.zeros(B, n_extra * 3,
+                                device=shape_params.device, dtype=shape_params.dtype)
+        pose = torch.cat([global_pose, jaw_pose, zero_pose], dim=1)
 
-        # LBS
-        vertices = lbs(vertices, pose, J, self.parents, self.lbs_weights, self.posedirs)
-
-        # Landmarks
-        if self.landmark_indices is not None:
-            landmarks = vertices[:, self.landmark_indices, :]
-        elif hasattr(self, "_lmk_faces_idx"):
-            # Barycentric interpolation
-            f_verts = vertices[:, self.faces[self._lmk_faces_idx], :]  # (B, L, 3, 3)
-            bc = self._lmk_bary_coords.unsqueeze(0).unsqueeze(-1)      # (1, L, 3, 1)
-            landmarks = (f_verts * bc).sum(dim=2)                       # (B, L, 3)
-        else:
-            landmarks = vertices[:, :68, :]
+        vertices  = lbs(vertices, pose, J, self.parents, self.lbs_weights, self.posedirs)
+        landmarks = self.get_landmarks(vertices)
 
         return vertices, landmarks

@@ -113,9 +113,12 @@ elif [ "$STAGE" = "2" ]; then
     echo "Running Stage 2: Tracking..."
     echo ""
 
+    LM_EMBED="$(dirname "$FLAME_PATH")/mediapipe_landmark_embedding.npz"
+
     python "$SCRIPT_DIR/track.py" \
         --dataset     "$DATASET" \
         --flame       "$FLAME_PATH" \
+        --lm-embed    "$LM_EMBED" \
         --device      cuda \
         --iters       "$ITERS" \
         --max-frames  "$MAX_FRAMES"
