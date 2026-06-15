@@ -177,10 +177,23 @@ class FrameFitter:
         n_lm = self.flame.n_landmarks
         mp_idx = getattr(self.flame, "lmk_mp_idx", None)
         if mp_idx is not None:
-            # Select exactly the MediaPipe points that match the FLAME embedding rows
             gt_lm = gt_lm[:, torch.from_numpy(mp_idx).long().to(dev), :]
         else:
             gt_lm = gt_lm[:, :n_lm, :]
+
+        # Smart initialisation: estimate scale and translation from detected landmarks
+        if init_scale is None:
+            lm_np = gt_lm[0].cpu().numpy()
+            face_span = max(lm_np[:, 0].max() - lm_np[:, 0].min(),
+                            lm_np[:, 1].max() - lm_np[:, 1].min())
+            # FLAME neutral face spans roughly 0.4 units; image_size pixels maps to [-1,1]
+            init_scale_val = float(face_span / self.image_size * 2.0 / 0.4)
+            scale = nn.Parameter(torch.tensor([init_scale_val], device=dev))
+        if init_t2d is None:
+            lm_np = gt_lm[0].cpu().numpy()
+            cx = (lm_np[:, 0].mean() / self.image_size) * 2.0 - 1.0
+            cy = (lm_np[:, 1].mean() / self.image_size) * 2.0 - 1.0
+            t2d = nn.Parameter(torch.tensor([[cx, cy]], device=dev))
 
         best_loss = float("inf")
         best_state = None
