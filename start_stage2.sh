@@ -17,8 +17,7 @@ echo "================================================"
 echo ""
 
 # --- Dataset
-read -rp "Dataset path [data/processed/take1]: " DATASET
-DATASET="${DATASET:-data/processed/take1}"
+read -e -i "data/processed/take1" -p "Dataset path: " DATASET
 [ -d "$DATASET" ] || DATASET="$SCRIPT_DIR/$DATASET"
 if [ ! -d "$DATASET" ]; then
     echo "ERROR: Dataset not found: $DATASET"
@@ -28,8 +27,7 @@ fi
 
 # --- FLAME model
 FLAME_DEFAULT="$SCRIPT_DIR/data/flame/flame2023.pkl"
-read -rp "FLAME model path [$FLAME_DEFAULT]: " FLAME_PATH
-FLAME_PATH="${FLAME_PATH:-$FLAME_DEFAULT}"
+read -e -i "$FLAME_DEFAULT" -p "FLAME model path: " FLAME_PATH
 if [ ! -f "$FLAME_PATH" ]; then
     echo ""
     echo "ERROR: FLAME model not found at: $FLAME_PATH"
@@ -47,17 +45,13 @@ if [ ! -f "$LM_EMBED" ]; then
     echo ""
     echo "WARNING: mediapipe_landmark_embedding.npz not found at: $LM_EMBED"
     echo "Tracking will fall back to built-in landmarks (less accurate)."
-    echo "Download from: https://github.com/vchoutas/smplx (under FLAME assets)"
     echo ""
     LM_EMBED=""
 fi
 
 # --- Options
-read -rp "Optimizer iterations per frame [300]: " ITERS
-ITERS="${ITERS:-300}"
-
-read -rp "Test run? Enter number of frames to process (0 = all) [50]: " MAX_FRAMES
-MAX_FRAMES="${MAX_FRAMES:-50}"
+read -e -i "300" -p "Optimizer iterations per frame: " ITERS
+read -e -i "50"  -p "Max frames to process (0 = all): " MAX_FRAMES
 
 echo ""
 if [ "$MAX_FRAMES" != "0" ]; then

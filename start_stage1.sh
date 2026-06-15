@@ -18,20 +18,15 @@ echo ""
 
 # --- Video file
 while true; do
-    read -rp "Video file path (e.g. data/capture/IMG_9625.MOV): " VIDEO
+    read -e -p "Video file path (e.g. data/capture/IMG_9625.MOV): " VIDEO
     [ -f "$VIDEO" ] && break
     [ -f "$SCRIPT_DIR/$VIDEO" ] && VIDEO="$SCRIPT_DIR/$VIDEO" && break
     echo "  ERROR: File not found: $VIDEO — try again."
 done
 
-read -rp "Dataset name [take1]: " NAME
-NAME="${NAME:-take1}"
-
-read -rp "Crop size in pixels [512]: " SIZE
-SIZE="${SIZE:-512}"
-
-read -rp "FPS [30]: " FPS
-FPS="${FPS:-30}"
+read -e -i "take1" -p "Dataset name: " NAME
+read -e -i "512"   -p "Crop size in pixels: " SIZE
+read -e -i "30"    -p "FPS: " FPS
 
 OUT="$SCRIPT_DIR/data/processed"
 
