@@ -164,9 +164,11 @@ class FrameFitter:
             init_t2d.clone() if init_t2d is not None
             else torch.zeros(1, 2, device=dev))
 
-        optimizer = torch.optim.Adam(
-            [expr, global_pose, jaw_pose, scale, t2d],
-            lr=lr, betas=(0.9, 0.999))
+        optimizer = torch.optim.Adam([
+            {"params": [expr, global_pose, jaw_pose], "lr": lr},
+            {"params": [scale],                        "lr": lr * 100},
+            {"params": [t2d],                          "lr": lr * 10},
+        ], betas=(0.9, 0.999))
         scheduler = torch.optim.lr_scheduler.StepLR(
             optimizer, step_size=100, gamma=0.5)
 
@@ -276,39 +278,80 @@ def fit_shape(flame_model: FLAME,
 
     print(f"  Fitting shared identity on {len(valid)} frames...")
 
+    # Pre-compute per-frame gt tensors and per-frame camera initialisations.
+    # We need them as constants outside the shape optimisation loop because
+    # scale and translation are not shape parameters — they are nuisance
+    # variables estimated analytically from the detected landmarks so that
+    # the shape gradient sees correctly-scaled reprojection error.
+    #
+    # Per-frame camera estimate (non-differentiable, recomputed each outer step):
+    #   scale  = face_px_span / FLAME_face_span   (FLAME neutral face ≈ 0.2 units wide)
+    #   t2d    = detected_centroid − image_centre
+    #
+    # FLAME_face_span: the neutral template spans roughly ±0.1 m in X → 0.2 units.
+    # We also add a per-frame learnable (sc, t2) so the optimiser can refine them.
+    mp_idx_np = getattr(flame_model, "lmk_mp_idx", None)
+    mp_idx_t  = (torch.from_numpy(mp_idx_np).long().to(device)
+                 if mp_idx_np is not None else None)
+    n_lm = flame_model.n_landmarks
+    FLAME_XY_SPAN = 0.2  # approximate neutral face width in FLAME metres
+
+    # Build list of (gt_tensor, init_scale, init_t2d) per frame
+    frame_data = []
+    for _, lm_np in valid:
+        gt = torch.from_numpy(lm_np).float().to(device).unsqueeze(0)  # (1, 478, 2)
+        if mp_idx_t is not None:
+            gt = gt[:, mp_idx_t, :]
+        else:
+            gt = gt[:, :n_lm, :]
+        lm_cpu = gt[0].cpu().numpy()
+        face_span = max(lm_cpu[:, 0].max() - lm_cpu[:, 0].min(),
+                        lm_cpu[:, 1].max() - lm_cpu[:, 1].min())
+        init_sc = float(face_span / FLAME_XY_SPAN)
+        cx = float(lm_cpu[:, 0].mean() - image_size / 2.0)
+        cy = float(lm_cpu[:, 1].mean() - image_size / 2.0)
+        frame_data.append((gt, init_sc, cx, cy))
+
     shape = nn.Parameter(torch.zeros(1, n_shape, device=device))
-    optimizer = torch.optim.Adam([shape], lr=lr)
+    # Per-frame learnable camera parameters (scale + t2d) — optimised jointly
+    # with shape so the landmark loss is always in the right coordinate frame.
+    frame_scales = nn.ParameterList([
+        nn.Parameter(torch.tensor([fd[1]], device=device)) for fd in frame_data
+    ])
+    frame_t2ds = nn.ParameterList([
+        nn.Parameter(torch.tensor([[fd[2], fd[3]]], device=device)) for fd in frame_data
+    ])
+
+    optimizer = torch.optim.Adam([
+        {"params": [shape],                                      "lr": lr},
+        {"params": list(frame_scales.parameters()),              "lr": lr * 100},
+        {"params": list(frame_t2ds.parameters()),                "lr": lr * 10},
+    ], betas=(0.9, 0.999))
 
     for _ in tqdm(range(n_iters), desc="shape fitting", leave=False):
         optimizer.zero_grad()
         total_loss = torch.tensor(0.0, device=device)
 
-        for _, lm_np in valid:
-            gt = torch.from_numpy(lm_np).float().to(device).unsqueeze(0)  # (1, 478, 2)
-            n_lm = flame_model.n_landmarks
-            mp_idx = getattr(flame_model, "lmk_mp_idx", None)
-            if mp_idx is not None:
-                gt = gt[:, torch.from_numpy(mp_idx).long().to(device), :]
-            else:
-                gt = gt[:, :n_lm, :]
+        expr = torch.zeros(1, n_expr, device=device)
+        gp   = torch.zeros(1, 3, device=device)
+        jp   = torch.zeros(1, 3, device=device)
+        _, lm3d_all = flame_model(shape, expr, gp, jp)
+        lm3d = lm3d_all[:, :n_lm, :]
 
-            expr = torch.zeros(1, n_expr, device=device)
-            gp   = torch.zeros(1, 3, device=device)
-            jp   = torch.zeros(1, 3, device=device)
-            sc   = torch.ones(1, device=device) * 0.9
-            t2   = torch.zeros(1, 2, device=device)
-
-            _, lm3d = flame_model(shape, expr, gp, jp)
-            lm3d = lm3d[:, :n_lm, :]
+        for k, (gt, _, _, _) in enumerate(frame_data):
+            sc = frame_scales[k]
+            t2 = frame_t2ds[k]
             proj = project_weak_perspective(lm3d, sc, t2, image_size)
             total_loss = total_loss + landmark_loss(proj, gt)
 
-        total_loss = total_loss / len(valid) + 1e-4 * (shape ** 2).mean()
+        total_loss = total_loss / len(frame_data) + 1e-4 * (shape ** 2).mean()
         total_loss.backward()
         optimizer.step()
 
         with torch.no_grad():
             shape.clamp_(-3.0, 3.0)
+            for sc in frame_scales:
+                sc.clamp_(100.0, 5000.0)
 
     return shape.detach()
 
