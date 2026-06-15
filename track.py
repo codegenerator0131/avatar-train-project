@@ -54,21 +54,17 @@ def project_weak_perspective(vertices_3d: torch.Tensor,
     Weak-perspective projection.
 
     vertices_3d : (B, V, 3)
-    scale       : (B,)   depth scale (unitless)
-    t2d         : (B, 2) translation in normalised [-1,1] coords
+    scale       : (B,)   focal scale in pixels (how many pixels per FLAME unit)
+    t2d         : (B, 2) 2D translation in pixels from image centre
     image_size  : int    square image side in pixels
 
-    Returns
-    -------
-    (B, V, 2) projected pixel coordinates
+    Returns pixel coordinates (B, V, 2).
     """
-    # Project: take X, Y; scale; shift to pixel space
-    xy = vertices_3d[:, :, :2]               # (B, V, 2)
-    proj = scale[:, None, None] * xy         # (B, V, 2)
-    proj = proj + t2d[:, None, :]            # (B, V, 2)  in [-1,1] approx
-    # Map from [-1,1] to [0, image_size]
-    proj = (proj + 1.0) * (image_size / 2.0)
-    return proj                               # (B, V, 2) pixel coords
+    xy = vertices_3d[:, :, :2]                        # (B, V, 2) in FLAME units
+    proj = scale[:, None, None] * xy                  # (B, V, 2) in pixels, centred
+    proj = proj + t2d[:, None, :]                     # shift by pixel translation
+    proj = proj + image_size / 2.0                    # move origin to top-left
+    return proj
 
 
 # ---------------------------------------------------------------------------
@@ -159,9 +155,11 @@ class FrameFitter:
         jaw_pose = nn.Parameter(
             init_jaw_pose.clone() if init_jaw_pose is not None
             else torch.zeros(1, 3, device=dev))
+        # scale: pixels per FLAME unit. FLAME face ~0.4 units wide; image_size pixels wide.
         scale = nn.Parameter(
             init_scale.clone() if init_scale is not None
-            else torch.ones(1, device=dev) * 0.9)
+            else torch.ones(1, device=dev) * (self.image_size / 0.4))
+        # t2d: pixel offset from image centre (0,0 = centred)
         t2d = nn.Parameter(
             init_t2d.clone() if init_t2d is not None
             else torch.zeros(1, 2, device=dev))
@@ -186,13 +184,14 @@ class FrameFitter:
             lm_np = gt_lm[0].cpu().numpy()
             face_span = max(lm_np[:, 0].max() - lm_np[:, 0].min(),
                             lm_np[:, 1].max() - lm_np[:, 1].min())
-            # FLAME neutral face spans roughly 0.4 units; image_size pixels maps to [-1,1]
-            init_scale_val = float(face_span / self.image_size * 2.0 / 0.4)
+            # scale = pixels per FLAME unit; FLAME face ~0.4 units wide
+            init_scale_val = float(face_span / 0.4)
             scale = nn.Parameter(torch.tensor([init_scale_val], device=dev))
         if init_t2d is None:
             lm_np = gt_lm[0].cpu().numpy()
-            cx = (lm_np[:, 0].mean() / self.image_size) * 2.0 - 1.0
-            cy = (lm_np[:, 1].mean() / self.image_size) * 2.0 - 1.0
+            # t2d = offset from image centre in pixels
+            cx = lm_np[:, 0].mean() - self.image_size / 2.0
+            cy = lm_np[:, 1].mean() - self.image_size / 2.0
             t2d = nn.Parameter(torch.tensor([[cx, cy]], device=dev))
 
         best_loss = float("inf")
@@ -219,7 +218,7 @@ class FrameFitter:
             # Clamp to physically plausible range
             with torch.no_grad():
                 expr.clamp_(-3.0, 3.0)
-                scale.clamp_(0.1, 5.0)
+                scale.clamp_(100.0, 5000.0)
                 jaw_pose[:, 0].clamp_(-0.5, 0.5)   # jaw opens / closes only
 
             lv = loss.item()
@@ -454,7 +453,7 @@ def main() -> None:
                          "expression": np.zeros(args.n_expr).tolist(),
                          "global_pose": np.zeros(3).tolist(),
                          "jaw_pose": np.zeros(3).tolist(),
-                         "camera_scale": 0.9,
+                         "camera_scale": 1280.0,
                          "camera_t": [0.0, 0.0],
                          "loss": None, "reprojection_error_px": None}
             results.append(entry)
