@@ -19,35 +19,9 @@ import torch
 import torch.nn as nn
 
 
-class _Ch(np.ndarray):
-    """Chumpy array stub — a plain ndarray that pickle can reconstruct via NEWOBJ."""
-    def __new__(cls, *args, **kwargs):
-        return np.array([]).view(cls)
-
-    def __array_finalize__(self, obj):
-        pass
-
-
 def _load_flame_pkl(path: str) -> dict:
-    import sys, types
-
-    # Register stub modules so pickle can import chumpy.* without the package
-    for mod_name in ["chumpy", "chumpy.ch", "chumpy.utils", "chumpy.reordering"]:
-        if mod_name not in sys.modules:
-            mod = types.ModuleType(mod_name)
-            mod.Ch = _Ch
-            sys.modules[mod_name] = mod
-
     with open(path, "rb") as f:
-        data = pickle.load(f, encoding="latin1")
-
-    # Convert any _Ch stubs to plain numpy arrays recursively
-    def _to_np(v):
-        if isinstance(v, _Ch):
-            return np.array(v)
-        return v
-
-    return {k: _to_np(v) for k, v in data.items()}
+        return pickle.load(f, encoding="latin1")
 
 
 def _to_tensor(x, dtype=torch.float32, device="cpu"):
