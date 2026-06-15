@@ -193,7 +193,14 @@ class FLAME(nn.Module):
                 self.register_buffer("lmk_bary_coords",
                     _to_tensor(np.array(bary), device=device))
                 self.n_landmarks = int(self.lmk_face_idx.shape[0])
-                print(f"  Loaded MediaPipe embedding: {self.n_landmarks} landmarks")
+                # Try to load the MediaPipe index map (which of 478 MP points each row corresponds to)
+                mp_idx = emb.get("lmk_mp_idx",
+                          emb.get("mp_idx",
+                          emb.get("mediapipe_idx", None)))
+                self.lmk_mp_idx = np.array(mp_idx).astype(np.int64) if mp_idx is not None else None
+                print(f"  Loaded MediaPipe embedding: {self.n_landmarks} landmarks "
+                      f"| keys: {list(emb.keys())}"
+                      f"{' | mp_idx: YES' if self.lmk_mp_idx is not None else ' | mp_idx: NOT FOUND (will use sequential)'}")
             else:
                 print(f"  WARNING: could not read embedding keys from {lm_embed_path}")
                 print(f"  Available keys: {list(emb.keys())}")

@@ -24,9 +24,9 @@ try:
 except ImportError:
     raise ImportError("mediapipe missing: pip install mediapipe")
 
-# MediaPipe Face Mesh gives 478 landmarks (468 face + 10 iris)
-# We use only the 468 face landmarks (indices 0-467)
-N_LANDMARKS = 468
+# MediaPipe Face Mesh gives 478 landmarks (468 face + 10 iris).
+# We keep all 478 so the mediapipe_landmark_embedding.npz indices stay valid.
+N_LANDMARKS = 478
 
 _MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/"
@@ -89,10 +89,10 @@ def detect_landmarks(image_rgb: np.ndarray,
     if not result.face_landmarks:
         return None
 
-    # Take the first (and only) face
+    # Take the first (and only) face — all 478 points (468 face + 10 iris)
     lm_list = result.face_landmarks[0][:N_LANDMARKS]
     pts = np.array([[lm.x * w, lm.y * h] for lm in lm_list], dtype=np.float32)
-    return pts  # (468, 2)
+    return pts  # (478, 2)
 
 
 def detect_landmarks_from_path(frame_path: str | Path) -> np.ndarray | None:

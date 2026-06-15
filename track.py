@@ -173,12 +173,14 @@ class FrameFitter:
             optimizer, step_size=100, gamma=0.5)
 
         # Ground-truth landmarks on device
-        gt_lm = torch.from_numpy(detected_lm).float().to(dev).unsqueeze(0)  # (1, L, 2)
-        n_flame_lm = self.flame.n_landmarks
-        n_gt = gt_lm.shape[1]
-        # Use only min(n_flame_lm, n_gt) landmarks
-        n_lm = min(n_flame_lm, n_gt)
-        gt_lm = gt_lm[:, :n_lm, :]
+        gt_lm = torch.from_numpy(detected_lm).float().to(dev).unsqueeze(0)  # (1, 478, 2)
+        n_lm = self.flame.n_landmarks
+        mp_idx = getattr(self.flame, "lmk_mp_idx", None)
+        if mp_idx is not None:
+            # Select exactly the MediaPipe points that match the FLAME embedding rows
+            gt_lm = gt_lm[:, torch.from_numpy(mp_idx).long().to(dev), :]
+        else:
+            gt_lm = gt_lm[:, :n_lm, :]
 
         best_loss = float("inf")
         best_state = None
@@ -270,10 +272,13 @@ def fit_shape(flame_model: FLAME,
         total_loss = torch.tensor(0.0, device=device)
 
         for _, lm_np in valid:
-            gt = torch.from_numpy(lm_np).float().to(device).unsqueeze(0)
-            n_flame_lm = flame_model.n_landmarks
-            n_lm = min(n_flame_lm, gt.shape[1])
-            gt = gt[:, :n_lm, :]
+            gt = torch.from_numpy(lm_np).float().to(device).unsqueeze(0)  # (1, 478, 2)
+            n_lm = flame_model.n_landmarks
+            mp_idx = getattr(flame_model, "lmk_mp_idx", None)
+            if mp_idx is not None:
+                gt = gt[:, torch.from_numpy(mp_idx).long().to(device), :]
+            else:
+                gt = gt[:, :n_lm, :]
 
             expr = torch.zeros(1, n_expr, device=device)
             gp   = torch.zeros(1, 3, device=device)
