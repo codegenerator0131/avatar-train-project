@@ -116,6 +116,15 @@ fi
 echo "  Installing packages from requirements.txt..."
 pip install -r "$SCRIPT_DIR/requirements.txt" --quiet
 
+# chumpy (FLAME pkl dependency) — pip's build is broken on Python 3.11,
+# install directly from source instead
+if python -c "import chumpy" &>/dev/null 2>&1; then
+    echo "  [skip] chumpy already installed"
+else
+    echo "  Installing chumpy from source..."
+    pip install --no-build-isolation git+https://github.com/mattloper/chumpy.git --quiet
+fi
+
 mkdir -p "$SCRIPT_DIR/data/capture" "$SCRIPT_DIR/data/flame" "$SCRIPT_DIR/output"
 
 echo ""
