@@ -35,13 +35,15 @@ if [ ! -f "$VIDEO" ]; then
     exit 1
 fi
 
-read -e -i "take1" -p "Dataset name (ID): " ID
-read -e -i "0"     -p "GPU index: " GPU
+read -e -i "0" -p "GPU index: " GPU
 export CUDA_VISIBLE_DEVICES=$GPU
 
 VHAP_DIR="$SCRIPT_DIR/vhap"
-TRACKED_DIR="$SCRIPT_DIR/data/processed/${ID}_vhap"
-NERF_DIR="$SCRIPT_DIR/data/processed/${ID}_nerf"
+# Sequence name = video filename without extension (VHAP preprocess creates a dir with this name)
+SEQUENCE="$(basename "$VIDEO" | sed 's/\.[^.]*$//')"
+CAPTURE_DIR="$(dirname "$VIDEO")"
+TRACKED_DIR="$SCRIPT_DIR/data/processed/${SEQUENCE}_vhap"
+NERF_DIR="$SCRIPT_DIR/data/processed/${SEQUENCE}_nerf"
 
 echo ""
 echo "Step 1/3 — Preprocessing video (frame extraction + background matting)..."
@@ -54,9 +56,9 @@ echo ""
 echo "Step 2/3 — Photometric FLAME tracking..."
 echo ""
 "$VHAP_PYTHON" "$VHAP_DIR/vhap/track.py" \
-    --data.root_folder "$SCRIPT_DIR/data/source/input_videos" \
+    --data.root_folder "$CAPTURE_DIR" \
     --exp.output_folder "$TRACKED_DIR" \
-    --data.sequence "$ID"
+    --data.sequence "$SEQUENCE"
 
 echo ""
 echo "Step 3/3 — Exporting as NeRF/3DGS dataset..."
@@ -70,6 +72,7 @@ echo "================================================"
 echo "  Stage 2 complete!"
 echo "================================================"
 echo ""
+echo "Sequence: $SEQUENCE"
 echo "Output: $NERF_DIR"
 echo "  transforms.json     — camera poses per frame"
 echo "  images/             — matted frames (white background)"
