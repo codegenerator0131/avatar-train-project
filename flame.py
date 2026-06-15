@@ -114,7 +114,9 @@ def lbs(vertices: torch.Tensor, pose: torch.Tensor,
     T = torch.zeros(B, J_n, 4, 4, device=vertices.device, dtype=vertices.dtype)
     T[:, :, :3, :3] = R_global
     T[:, :, :3,  3] = J_transformed - torch.bmm(
-        R_global, J[:, :, :, None]).squeeze(-1)
+        R_global.reshape(B * J_n, 3, 3),
+        J.reshape(B * J_n, 3, 1)
+    ).reshape(B, J_n, 3)
     T[:, :,  3,  3] = 1.0
 
     # Blend
