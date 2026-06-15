@@ -24,8 +24,14 @@ echo "================================================"
 echo ""
 
 # --- Inputs
-read -e -i "$SCRIPT_DIR/data/capture/IMG_9625.mov" -p "Input video path: " VIDEO
-[ -f "$VIDEO" ] || VIDEO="$SCRIPT_DIR/$VIDEO"
+read -e -i "$SCRIPT_DIR/data/capture/IMG_9625.MOV" -p "Input video path: " VIDEO
+if [ ! -f "$VIDEO" ]; then
+    VIDEO="$SCRIPT_DIR/$VIDEO"
+fi
+if [ ! -f "$VIDEO" ]; then
+    echo "ERROR: Video not found: $VIDEO"
+    exit 1
+fi
 if [ ! -f "$VIDEO" ]; then
     echo "ERROR: Video not found: $VIDEO"
     exit 1
