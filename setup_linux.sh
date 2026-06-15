@@ -172,9 +172,10 @@ else
     ln -sf "$CONDA_PREFIX/lib" "$CONDA_PREFIX/lib64" 2>/dev/null || true
     conda env config vars set CUDA_HOME="$CONDA_PREFIX"
     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+    pip install hatchling
     pip install --no-build-isolation git+https://github.com/mattloper/chumpy.git
     pip install git+https://github.com/ShenhanQian/nvdiffrast.git
-    pip install --no-build-isolation -e "$VHAP_DIR/"
+    pip install -e "$VHAP_DIR/"
     conda deactivate
     echo "  conda env 'vhap' ready."
 fi
