@@ -166,6 +166,8 @@ else
     echo "  Creating conda env 'vhap'..."
     conda create --name vhap -y python=3.10
     conda activate vhap
+    conda install -y pip
+    pip install --upgrade pip
     conda install -y -c "nvidia/label/cuda-12.1.1" cuda-toolkit ninja cmake
     ln -sf "$CONDA_PREFIX/lib" "$CONDA_PREFIX/lib64" 2>/dev/null || true
     conda env config vars set CUDA_HOME="$CONDA_PREFIX"
