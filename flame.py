@@ -12,8 +12,6 @@ alignment between detected 2D landmarks and the 3D model.
 from __future__ import annotations
 
 import pickle
-import sys
-import types
 from pathlib import Path
 
 import numpy as np
@@ -21,40 +19,30 @@ import torch
 import torch.nn as nn
 
 
-# FLAME pkl files were saved with chumpy arrays. Stub it out so pickle can
-# deserialize without needing the actual chumpy package installed.
-def _stub_chumpy():
-    ch = types.ModuleType("chumpy")
+# FLAME pkl files were saved with chumpy arrays. We use a custom Unpickler
+# that redirects every chumpy class to a plain numpy array, so chumpy never
+# needs to be installed.
+class _ChumpyFreeUnpickler(pickle.Unpickler):
+    """Replaces any chumpy type with a plain numpy ndarray during unpickling."""
 
-    class _Ch(np.ndarray):
-        """Minimal chumpy array stub — just a numpy array."""
-        def __new__(cls, *args, **kwargs):
-            if args and isinstance(args[0], np.ndarray):
-                return np.asarray(args[0]).view(cls)
-            return np.array(*args, **kwargs).view(cls)
-        def __reduce__(self):
-            return (np.array, (np.asarray(self),))
+    class _AnyToArray:
+        """Placeholder that converts itself to ndarray when called."""
+        def __init__(self, *a, **kw):
+            self._data = np.array(a[0]) if a else np.array([])
+        def __array__(self, dtype=None):
+            return self._data if dtype is None else self._data.astype(dtype)
 
-    ch.Ch = _Ch
-    ch.array = _Ch
+    def find_class(self, module, name):
+        if module.startswith("chumpy"):
+            # Return a factory that wraps whatever data pickle passes in
+            # and produces a plain numpy array.
+            return lambda *a, **kw: np.array(a[0]) if a else np.zeros(1)
+        return super().find_class(module, name)
 
-    class _Where:
-        def __init__(self, *a, **kw): pass
-        def __call__(self, *a, **kw): return np.zeros(1)
 
-    for name in ["maximum", "minimum", "abs", "sum", "dot", "concatenate",
-                 "vstack", "hstack", "zeros", "ones", "eye"]:
-        setattr(ch, name, getattr(np, name, _Where()))
-
-    ch.__version__ = "0.70"
-    sys.modules.setdefault("chumpy", ch)
-    # Stub sub-modules — each must also expose Ch so pickle can find it
-    for sub in ["ch", "utils", "reordering"]:
-        mod = types.ModuleType(f"chumpy.{sub}")
-        mod.Ch = _Ch
-        sys.modules.setdefault(f"chumpy.{sub}", mod)
-
-_stub_chumpy()
+def _load_flame_pkl(path: str) -> dict:
+    with open(path, "rb") as f:
+        return _ChumpyFreeUnpickler(f).load()
 
 
 def _to_tensor(x, dtype=torch.float32, device="cpu"):
@@ -160,8 +148,7 @@ class FLAME(nn.Module):
         self.n_expr  = n_expr
 
         # ---- Load FLAME pkl ----------------------------------------------
-        with open(model_path, "rb") as f:
-            flame = pickle.load(f, encoding="latin1")
+        flame = _load_flame_pkl(model_path)
 
         def _load_basis(arr, n):
             arr = np.array(arr)
