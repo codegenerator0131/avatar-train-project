@@ -164,20 +164,19 @@ if conda env list | grep -q "^vhap "; then
     echo "  [skip] conda env 'vhap' already exists"
 else
     echo "  Creating conda env 'vhap'..."
-    conda create --name vhap -y python=3.10
+    conda create --name vhap -y python=3.9
     conda activate vhap
     conda install -y pip
     pip install --upgrade pip
     conda install -y -c "nvidia/label/cuda-12.1.1" cuda-toolkit ninja cmake
     ln -sf "$CONDA_PREFIX/lib" "$CONDA_PREFIX/lib64" 2>/dev/null || true
     conda env config vars set CUDA_HOME="$CONDA_PREFIX"
-    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+    pip install torch==2.1.0 torchvision==0.16.0 --index-url https://download.pytorch.org/whl/cu121
     pip install hatchling
-    # Install packages that require --no-build-isolation (need torch visible at build time)
     pip install --no-build-isolation git+https://github.com/mattloper/chumpy.git
-    pip install --no-build-isolation git+https://github.com/facebookresearch/pytorch3d.git
+    # Install pytorch3d from pre-built conda wheel (avoids compiling from source)
+    conda install -y -c pytorch3d pytorch3d
     pip install git+https://github.com/ShenhanQian/nvdiffrast.git
-    # Install VHAP without re-resolving already-installed build-deps
     pip install --no-build-isolation -e "$VHAP_DIR/"
     conda deactivate
     echo "  conda env 'vhap' ready."
