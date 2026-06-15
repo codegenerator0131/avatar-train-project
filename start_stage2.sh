@@ -24,14 +24,12 @@ echo "================================================"
 echo ""
 
 # --- Inputs
-read -e -i "$SCRIPT_DIR/data/capture/IMG_9625.MOV" -p "Input video path: " VIDEO
-if [ ! -f "$VIDEO" ]; then
-    VIDEO="$SCRIPT_DIR/$VIDEO"
-fi
-if [ ! -f "$VIDEO" ]; then
-    echo "ERROR: Video not found: $VIDEO"
-    exit 1
-fi
+# Find whichever capitalisation exists
+DEFAULT_VIDEO=""
+for f in "$SCRIPT_DIR/data/capture/IMG_9625.mov" "$SCRIPT_DIR/data/capture/IMG_9625.MOV"; do
+    [ -f "$f" ] && DEFAULT_VIDEO="$f" && break
+done
+read -e -i "${DEFAULT_VIDEO:-$SCRIPT_DIR/data/capture/IMG_9625.mov}" -p "Input video path: " VIDEO
 if [ ! -f "$VIDEO" ]; then
     echo "ERROR: Video not found: $VIDEO"
     exit 1
