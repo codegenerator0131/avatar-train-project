@@ -1,78 +1,78 @@
 #!/usr/bin/env bash
-# Stage 2: Tracking — frames → FLAME params per frame
+# Stage 2: FLAME Tracking via VHAP (photometric fitting → NeRF/3DGS dataset)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV="$SCRIPT_DIR/venv/bin/activate"
 
-if [ ! -f "$VENV" ]; then
-    echo "Venv not found — running setup first..."
+# --- Run setup if venv or VHAP is missing
+if [ ! -f "$SCRIPT_DIR/venv/bin/activate" ] || [ ! -f "$SCRIPT_DIR/vhap/vhap/preprocess_video.py" ]; then
+    echo "Setup incomplete — running setup first..."
     bash "$SCRIPT_DIR/setup_linux.sh"
+    echo ""
 fi
-source "$VENV"
+
+# --- Initialize conda in this shell session
+CONDA_BASE="$(conda info --base 2>/dev/null)" || {
+    echo "ERROR: conda not found. Install Miniconda then re-run: bash setup_linux.sh"
+    exit 1
+}
+# shellcheck disable=SC1091
+source "$CONDA_BASE/etc/profile.d/conda.sh"
+conda activate vhap
 
 echo "================================================"
-echo "  Stage 2: FLAME Tracking"
+echo "  Stage 2: FLAME Tracking (VHAP)"
 echo "================================================"
 echo ""
 
-# --- Dataset
-read -e -i "data/processed/take1" -p "Dataset path: " DATASET
-[ -d "$DATASET" ] || DATASET="$SCRIPT_DIR/$DATASET"
-if [ ! -d "$DATASET" ]; then
-    echo "ERROR: Dataset not found: $DATASET"
-    echo "Run Stage 1 first: bash start_stage1.sh"
+# --- Inputs
+read -e -i "data/capture/IMG_9625.MOV" -p "Input video path: " VIDEO
+[ -f "$VIDEO" ] || VIDEO="$SCRIPT_DIR/$VIDEO"
+if [ ! -f "$VIDEO" ]; then
+    echo "ERROR: Video not found: $VIDEO"
     exit 1
 fi
 
-# --- FLAME model
-FLAME_DEFAULT="$SCRIPT_DIR/data/flame/flame2023.pkl"
-read -e -i "$FLAME_DEFAULT" -p "FLAME model path: " FLAME_PATH
-if [ ! -f "$FLAME_PATH" ]; then
-    echo ""
-    echo "ERROR: FLAME model not found at: $FLAME_PATH"
-    echo ""
-    echo "Download free from: https://flame.is.tue.mpg.de"
-    echo "  1. Register / log in"
-    echo "  2. Download FLAME 2023"
-    echo "  3. Place flame2023.pkl at: $FLAME_DEFAULT"
-    echo "     mkdir -p $SCRIPT_DIR/data/flame"
-    exit 1
-fi
+read -e -i "take1" -p "Dataset name (ID): " ID
+read -e -i "0"     -p "GPU index: " GPU
+export CUDA_VISIBLE_DEVICES=$GPU
 
-LM_EMBED="$(dirname "$FLAME_PATH")/mediapipe_landmark_embedding.npz"
-if [ ! -f "$LM_EMBED" ]; then
-    echo ""
-    echo "WARNING: mediapipe_landmark_embedding.npz not found at: $LM_EMBED"
-    echo "Tracking will fall back to built-in landmarks (less accurate)."
-    echo ""
-    LM_EMBED=""
-fi
-
-# --- Options
-read -e -i "300" -p "Optimizer iterations per frame: " ITERS
-read -e -i "50"  -p "Max frames to process (0 = all): " MAX_FRAMES
+VHAP_DIR="$SCRIPT_DIR/vhap"
+TRACKED_DIR="$SCRIPT_DIR/data/processed/${ID}_vhap"
+NERF_DIR="$SCRIPT_DIR/data/processed/${ID}_nerf"
 
 echo ""
-if [ "$MAX_FRAMES" != "0" ]; then
-    echo "Running Stage 2 in TEST mode (first $MAX_FRAMES frames)..."
-    echo "Check reprojection error at the end. If median < 10px, re-run with 0 for all frames."
-else
-    echo "Running Stage 2 on ALL frames..."
-fi
+echo "Step 1/3 — Preprocessing video (frame extraction + background matting)..."
 echo ""
-
-LM_ARGS=""
-[ -n "$LM_EMBED" ] && LM_ARGS="--lm-embed $LM_EMBED"
-
-python "$SCRIPT_DIR/track.py" \
-    --dataset    "$DATASET" \
-    --flame      "$FLAME_PATH" \
-    $LM_ARGS \
-    --device     cuda \
-    --iters      "$ITERS" \
-    --max-frames "$MAX_FRAMES"
+python "$VHAP_DIR/vhap/preprocess_video.py" \
+    --input "$VIDEO" \
+    --matting_method robust_video_matting
 
 echo ""
-echo "Done! Tracking saved to: $DATASET/tracking_smoothed.json"
-echo "This file feeds into Stage 3 (splat training): bash start_stage3.sh"
+echo "Step 2/3 — Photometric FLAME tracking..."
+echo ""
+python "$VHAP_DIR/vhap/track.py" \
+    --data.root_folder "$SCRIPT_DIR/data/source/input_videos" \
+    --exp.output_folder "$TRACKED_DIR" \
+    --data.sequence "$ID"
+
+echo ""
+echo "Step 3/3 — Exporting as NeRF/3DGS dataset..."
+echo ""
+python "$VHAP_DIR/vhap/export_as_nerf_dataset.py" \
+    --src_folder "$TRACKED_DIR" \
+    --tgt_folder "$NERF_DIR"
+
+echo ""
+echo "================================================"
+echo "  Stage 2 complete!"
+echo "================================================"
+echo ""
+echo "Output: $NERF_DIR"
+echo "  transforms.json     — camera poses per frame"
+echo "  images/             — matted frames (white background)"
+echo "  fg_masks/           — foreground alpha masks"
+echo "  flame_param/        — per-frame FLAME parameters (.npz)"
+echo "  canonical.obj       — FLAME neutral mesh"
+echo ""
+echo "Next: bash start.sh  (choose stage 3)"

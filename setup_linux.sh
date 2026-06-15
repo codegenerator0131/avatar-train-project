@@ -125,8 +125,45 @@ else
     pip install --no-build-isolation git+https://github.com/mattloper/chumpy.git --quiet
 fi
 
-mkdir -p "$SCRIPT_DIR/data/capture" "$SCRIPT_DIR/data/flame" "$SCRIPT_DIR/output"
+mkdir -p "$SCRIPT_DIR/data/capture" "$SCRIPT_DIR/data/flame" "$SCRIPT_DIR/data/source/input_videos" "$SCRIPT_DIR/output"
+
+echo "== [5/5] VHAP submodule (Stage 2 tracker) =="
+VHAP_DIR="$SCRIPT_DIR/vhap"
+if [ -f "$VHAP_DIR/vhap/preprocess_video.py" ]; then
+    echo "  [skip] VHAP submodule already present"
+else
+    echo "  Adding VHAP submodule..."
+    cd "$SCRIPT_DIR"
+    git submodule add https://github.com/ShenhanQian/VHAP.git vhap || true
+    git submodule update --init --recursive
+fi
+
+if conda env list 2>/dev/null | grep -q "^vhap "; then
+    echo "  [skip] conda env 'vhap' already exists"
+else
+    if command -v conda >/dev/null 2>&1; then
+        echo "  Creating conda env 'vhap'..."
+        # shellcheck disable=SC1090
+        source "$(conda info --base)/etc/profile.d/conda.sh"
+        conda create --name vhap -y python=3.10
+        conda activate vhap
+        conda install -y -c "nvidia/label/cuda-12.1.1" cuda-toolkit ninja cmake
+        ln -sf "$CONDA_PREFIX/lib" "$CONDA_PREFIX/lib64" 2>/dev/null || true
+        conda env config vars set CUDA_HOME="$CONDA_PREFIX"
+        pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+        pip install git+https://github.com/ShenhanQian/nvdiffrast.git
+        pip install -e "$VHAP_DIR/"
+        conda deactivate
+        echo "  conda env 'vhap' ready."
+    else
+        echo "  WARNING: conda not found — skipping VHAP env setup."
+        echo "  Install Miniconda then re-run setup, or follow manual steps in README."
+    fi
+fi
 
 echo ""
 echo "Setup complete. Now run:"
 echo "  source venv/bin/activate && python verify_env.py"
+echo ""
+echo "To run Stage 2 (VHAP tracking):"
+echo "  bash start_stage2.sh"

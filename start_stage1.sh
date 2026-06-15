@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV="$SCRIPT_DIR/venv/bin/activate"
 
 if [ ! -f "$VENV" ]; then
-    echo "Venv not found — running setup first..."
+    echo "venv not found — running setup first..."
     bash "$SCRIPT_DIR/setup_linux.sh"
 fi
 source "$VENV"
@@ -16,7 +16,6 @@ echo "  Stage 1: Capture"
 echo "================================================"
 echo ""
 
-# --- Video file
 while true; do
     read -e -p "Video file path (e.g. data/capture/IMG_9625.MOV): " VIDEO
     [ -f "$VIDEO" ] && break
@@ -45,4 +44,4 @@ echo ""
 echo "Done! Output saved to: $OUT/$NAME/"
 echo ""
 echo "Next: check a few frames in $OUT/$NAME/frames/ — full head should be"
-echo "visible (hair, chin, ears). Then run: bash start_stage2.sh"
+echo "visible (hair, chin, ears). Then run: bash start.sh  (choose stage 2)"
