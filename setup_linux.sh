@@ -173,9 +173,12 @@ else
     conda env config vars set CUDA_HOME="$CONDA_PREFIX"
     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
     pip install hatchling
+    # Install packages that require --no-build-isolation (need torch visible at build time)
     pip install --no-build-isolation git+https://github.com/mattloper/chumpy.git
+    pip install --no-build-isolation git+https://github.com/facebookresearch/pytorch3d.git
     pip install git+https://github.com/ShenhanQian/nvdiffrast.git
-    pip install -e "$VHAP_DIR/"
+    # Install VHAP without re-resolving already-installed build-deps
+    pip install --no-build-isolation -e "$VHAP_DIR/"
     conda deactivate
     echo "  conda env 'vhap' ready."
 fi
