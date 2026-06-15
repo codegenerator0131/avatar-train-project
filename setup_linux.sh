@@ -184,7 +184,7 @@ else
         dlib pandas gdown face-alignment joblib dearpygui
     # BackgroundMattingV2 is imported as a local module, not a pip package — clone next to vhap
     if [ ! -d "$VHAP_DIR/BackgroundMattingV2" ]; then
-        git clone https://github.com/PeterL1n/BackgroundMattingV2.git "$VHAP_DIR/BackgroundMattingV2"
+        git clone https://github.com/ShenhanQian/BackgroundMattingV2.git "$VHAP_DIR/BackgroundMattingV2"
     fi
     # Add vhap dir to Python path so local modules (BackgroundMattingV2, STAR etc) are importable
     SITE_PACKAGES="$VHAP_ENV_DIR/lib/python3.10/site-packages"
