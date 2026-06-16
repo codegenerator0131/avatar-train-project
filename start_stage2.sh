@@ -48,9 +48,13 @@ NERF_DIR="$SCRIPT_DIR/data/processed/${SEQUENCE}_nerf"
 echo ""
 echo "Step 1/3 — Preprocessing video (frame extraction + background matting)..."
 echo ""
-"$VHAP_PYTHON" "$VHAP_DIR/vhap/preprocess_video.py" \
-    --input "$VIDEO" \
-    --matting_method robust_video_matting
+if [ -d "$CAPTURE_DIR/$SEQUENCE/alpha_maps" ]; then
+    echo "  [skip] Already preprocessed: $CAPTURE_DIR/$SEQUENCE/"
+else
+    "$VHAP_PYTHON" "$VHAP_DIR/vhap/preprocess_video.py" \
+        --input "$VIDEO" \
+        --matting_method robust_video_matting
+fi
 
 echo ""
 echo "Step 2/3 — Photometric FLAME tracking..."
@@ -58,7 +62,10 @@ echo ""
 "$VHAP_PYTHON" "$VHAP_DIR/vhap/track.py" \
     --data.root_folder "$CAPTURE_DIR" \
     --exp.output_folder "$TRACKED_DIR" \
-    --data.sequence "$SEQUENCE"
+    --data.sequence "$SEQUENCE" \
+    --data.scale-factor 0.5 \
+    --batch-size 4 \
+    --model.tex-resolution 512
 
 echo ""
 echo "Step 3/3 — Exporting as NeRF/3DGS dataset..."

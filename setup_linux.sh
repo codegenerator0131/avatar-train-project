@@ -171,7 +171,7 @@ else
     VHAP_PYTHON="$HOME/miniconda3/envs/vhap/bin/python"
     VHAP_ENV_DIR="$HOME/miniconda3/envs/vhap"
 
-    "$VHAP_PIP" install --upgrade pip setuptools wheel editables hatchling
+    "$VHAP_PIP" install pip "setuptools==69.5.1" wheel editables hatchling
     # Auto-detect CUDA version and pick matching torch + conda cuda-toolkit wheels
     CUDA_VER="$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9]+\.[0-9]+')" || CUDA_VER=""
     CUDA_MAJOR="$(echo "$CUDA_VER" | cut -d. -f1)"
@@ -193,8 +193,14 @@ else
     echo "  Detected CUDA $CUDA_VER — using torch $TORCH_CUDA wheels"
     "$VHAP_CONDA" install -y -n vhap -c "$CONDA_CUDA_CHANNEL" cuda-toolkit ninja cmake
     ln -sf "$VHAP_ENV_DIR/lib" "$VHAP_ENV_DIR/lib64" 2>/dev/null || true
-    "$VHAP_PIP" install torch torchvision --index-url "https://download.pytorch.org/whl/$TORCH_CUDA"
+    # Pin numpy first to prevent later packages from upgrading it to 2.x
+    "$VHAP_PIP" install "numpy==1.22.3"
+    # Pin to 2.1.0 to match the pytorch3d pre-built wheel (py310_cu121_pyt210)
+    "$VHAP_PIP" install torch==2.1.0 torchvision==0.16.0 --index-url https://download.pytorch.org/whl/cu121
     "$VHAP_PIP" install --no-build-isolation git+https://github.com/mattloper/chumpy.git
+    # pytorch3d pre-built wheel (py310 + cu121 + pyt210) — avoids compiling from source
+    "$VHAP_PIP" install https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu121_pyt210/pytorch3d-0.7.5-cp310-cp310-linux_x86_64.whl
+    "$VHAP_PIP" install "git+https://github.com/ShenhanQian/STAR/" --no-build-isolation
     "$VHAP_PIP" install "nvdiffrast@git+https://github.com/ShenhanQian/nvdiffrast@backface-culling" --force-reinstall
     rm -rf ~/.cache/torch_extensions/*/nvdiffrast* 2>/dev/null || true
     # Install VHAP deps manually (skip pytorch3d — not needed, uses nvdiffrast instead)
@@ -207,6 +213,12 @@ else
     fi
     "$VHAP_PIP" install "$VHAP_DIR/BackgroundMattingV2/"
     "$VHAP_PIP" install --no-build-isolation -e "$VHAP_DIR/" --no-deps
+    # VHAP looks for asset/ relative to working directory (project root)
+    # Symlink vhap/asset → asset so all VHAP assets are found automatically
+    ln -sfn "$VHAP_DIR/asset" "$SCRIPT_DIR/asset"
+    # Override the FLAME files with our own copies (flame2023.pkl, FLAME_masks.pkl)
+    ln -sf "$SCRIPT_DIR/data/flame/flame2023.pkl"  "$SCRIPT_DIR/asset/flame/flame2023.pkl"
+    ln -sf "$SCRIPT_DIR/data/flame/FLAME_masks.pkl" "$SCRIPT_DIR/asset/flame/FLAME_masks.pkl"
     conda deactivate
     echo "  conda env 'vhap' ready."
 fi
