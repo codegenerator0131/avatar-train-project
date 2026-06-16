@@ -64,8 +64,7 @@ echo ""
     --exp.output_folder "$TRACKED_DIR" \
     --data.sequence "$SEQUENCE" \
     --data.scale-factor 0.5 \
-    --batch-size 4 \
-    --model.tex-resolution 512
+    --batch-size 4
 
 echo ""
 echo "Step 3/3 — Exporting as NeRF/3DGS dataset..."
