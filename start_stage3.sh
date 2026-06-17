@@ -193,7 +193,8 @@ echo "  Using resolution: $IMG_RES"
     --tgt_id "$ID" \
     --prior_cfg "$ELITE_CFG" \
     --prior_ckpt "$ELITE_CKPT" \
-    --res "$IMG_RES"
+    --res "$IMG_RES" \
+    --singleview_bs 1
 
 echo ""
 echo "Step 3/3 — Personalizing ELITE avatar (stage 2 fine-tuning)..."
@@ -205,7 +206,8 @@ echo ""
     --tgt_id "$ID" \
     --prior_cfg "$ELITE_CFG" \
     --prior_ckpt "$ELITE_CKPT" \
-    --res "$IMG_RES"
+    --res "$IMG_RES" \
+    --singleview_bs 1
 
 echo ""
 echo "================================================"
