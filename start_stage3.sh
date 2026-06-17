@@ -332,7 +332,27 @@ else
 fi
 
 echo ""
-echo "Step 4/4 — Rendering avatar with original video motion..."
+echo "Step 4/4 — Exporting PLY + rendering video..."
+echo ""
+
+# Export PLY
+PLY_OUT="$ELITE_DIR/outputs/$ID/${ID}_avatar.ply"
+if [ ! -f "$PLY_OUT" ]; then
+    echo "  Exporting 3D Gaussian avatar as PLY..."
+    cp "$SCRIPT_DIR/elite_export_ply.py" "$ELITE_DIR/elite_export_ply.py"
+    PYTHONPATH="$ELITE_DIR:${PYTHONPATH:-}" \
+    SINGLEVIEW_PRC_ROOT="$PROCESSED_DIR" \
+    SINGLEVIEW_TRACKED_ROOT="$TRACKED_DIR" \
+    EXP_ROOT="$ELITE_DIR/outputs" \
+    "$ELITE_PYTHON" "$ELITE_DIR/elite_export_ply.py" \
+        --person_id "$ID" \
+        --cfg_file "$ELITE_CFG" \
+        --ckpt_file "$EXP_PATH/st2/checkpoints/st2_final.pth" \
+        --out_path "$PLY_OUT" \
+        --res "$IMG_RES"
+else
+    echo "  [skip] PLY already exists: $PLY_OUT"
+fi
 echo ""
 
 # Build motion npz from Stage 2 per-frame flame_param files
@@ -397,6 +417,7 @@ echo "================================================"
 echo ""
 echo "Avatar trained for: $ID"
 echo "Output: $ELITE_DIR/outputs/$ID/"
+echo "PLY:    $ELITE_DIR/outputs/$ID/${ID}_avatar.ply"
 echo "Video:  $ELITE_DIR/outputs/$ID/vis_motion/${ID}_rgb_${MOTION_NAME}.mp4"
 echo ""
 echo "Next: bash start.sh  (choose stage 4)"
