@@ -284,7 +284,9 @@ echo ""
 echo "Step 3/3 — Generating synthetic random-expression dataset..."
 echo ""
 ST1_CKPT="$EXP_PATH/st1/checkpoints/st1_final.pth"
-if [ ! -f "$EXP_PATH/rand_expr_dataset/view_idxs.npy" ]; then
+RAND_EXPR_DIR="$EXP_PATH/rand_expr_dataset"
+RAND_IMG_COUNT=$(find "$RAND_EXPR_DIR" -name "*_rdr.png" 2>/dev/null | wc -l)
+if [ ! -f "$RAND_EXPR_DIR/view_idxs.npy" ] || [ "$RAND_IMG_COUNT" -lt 10 ]; then
     if [ ! -f "$ST1_CKPT" ]; then
         echo "ERROR: Stage 1 checkpoint not found: $ST1_CKPT"
         exit 1
@@ -296,7 +298,7 @@ if [ ! -f "$EXP_PATH/rand_expr_dataset/view_idxs.npy" ]; then
         --num_frames 1000 \
         --res "$IMG_RES"
 else
-    echo "  [skip] rand_expr_dataset already exists"
+    echo "  [skip] rand_expr_dataset already exists ($RAND_IMG_COUNT images)"
 fi
 
 echo ""
