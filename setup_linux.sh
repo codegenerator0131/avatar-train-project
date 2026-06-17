@@ -281,7 +281,7 @@ else
         git+https://github.com/hbb1/diff-surfel-rasterization.git
 
     # Install VHAP from elite's submodule
-    "$ELITE_PIP" install --no-build-isolation -e "$ELITE_DIR/vhap/" --no-deps
+    "$ELITE_PIP" install --no-build-isolation "$ELITE_DIR/vhap/" --no-deps
 
     # Patch configs/paths.sh with correct conda path
     sed -i "s|anaconda3/etc/profile.d/conda.sh|miniconda3/etc/profile.d/conda.sh|g" \
