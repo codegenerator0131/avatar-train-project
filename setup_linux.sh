@@ -261,7 +261,7 @@ else
     "$ELITE_CONDA" install -y -n ELITE pip
     "$ELITE_PIP" install --upgrade pip setuptools==69.5.1 wheel
     # Install requirements excluding chumpy and torch (we pin specific versions below)
-    grep -v "^chumpy\|^torch=\|^torchvision=\|^torchaudio=\|^triton=" "$ELITE_DIR/requirements.txt" > /tmp/elite_requirements.txt
+    grep -v "^chumpy\|^torch=\|^torchvision=\|^torchaudio=\|^triton=" "$ELITE_DIR/requirements.txt" > /tmp/elite_requirements.txt || true
     "$ELITE_PIP" install -r /tmp/elite_requirements.txt
     "$ELITE_PIP" install --no-build-isolation git+https://github.com/mattloper/chumpy.git
 
