@@ -156,6 +156,20 @@ done
 EXP_PATH="$EXP_ROOT/$ID"
 mkdir -p "$EXP_PATH"
 
+# Patch ELITE finetuning.py: N_log=4 hardcoded causes index OOB with small batch sizes
+"$ELITE_PYTHON" - <<PYEOF
+path = "$ELITE_DIR/src/pipeline/finetuning.py"
+with open(path) as f:
+    code = f.read()
+patched = code.replace('N_log = 4\n', 'N_log = min(4, N)\n')
+if patched != code:
+    with open(path, 'w') as f:
+        f.write(patched)
+    print("  Patched finetuning.py: N_log = min(4, N)")
+else:
+    print("  finetuning.py already patched")
+PYEOF
+
 # ELITE only supports 512x512 or 802x550 — auto-resize if needed
 IMG_RES="512x512"
 echo "  Checking image resolution..."
@@ -263,7 +277,7 @@ PYEOF
     --prior_cfg "$ELITE_CFG" \
     --prior_ckpt "$ELITE_CKPT" \
     --res "$IMG_RES" \
-    --singleview_bs 1
+    --singleview_bs 4
 
 echo ""
 echo "Step 3/3 — Personalizing ELITE avatar (stage 2 fine-tuning)..."
@@ -276,7 +290,7 @@ echo ""
     --prior_cfg "$ELITE_CFG" \
     --prior_ckpt "$ELITE_CKPT" \
     --res "$IMG_RES" \
-    --singleview_bs 1
+    --singleview_bs 4
 
 echo ""
 echo "================================================"
