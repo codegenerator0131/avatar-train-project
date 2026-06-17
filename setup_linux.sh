@@ -228,21 +228,13 @@ ELITE_DIR="$SCRIPT_DIR/elite"
 if [ -f "$ELITE_DIR/src/render.py" ]; then
     echo "  [skip] ELITE submodule already present"
 else
-    echo "  Setting up ELITE submodule..."
+    echo "  Cloning ELITE..."
     cd "$SCRIPT_DIR"
-    # Register submodule if not already in .gitmodules
-    git submodule add https://github.com/kaist-ami/ELITE.git elite 2>/dev/null || true
-    # Force full clone even if submodule dir exists but is empty
-    git submodule update --init --recursive --force elite
-    # If still empty (e.g. git submodule issues), fall back to direct clone
-    if [ ! -f "$ELITE_DIR/src/render.py" ]; then
-        echo "  Submodule init failed — cloning directly..."
-        rm -rf "$ELITE_DIR"
-        git clone https://github.com/kaist-ami/ELITE.git "$ELITE_DIR"
-        cd "$ELITE_DIR"
-        git submodule update --init --recursive
-        cd "$SCRIPT_DIR"
-    fi
+    rm -rf "$ELITE_DIR"
+    git clone https://github.com/kaist-ami/ELITE.git "$ELITE_DIR"
+    cd "$ELITE_DIR"
+    git submodule update --init --recursive
+    cd "$SCRIPT_DIR"
 fi
 
 ELITE_CONDA="$HOME/miniconda3/bin/conda"
