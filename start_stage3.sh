@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Stage 3: 3D Gaussian Avatar — ELITE personalization + rendering
 set -euo pipefail
+trap 'echo ""; echo "ERROR: Stage 3 failed at line $LINENO. Command: $BASH_COMMAND"; exit 1' ERR
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ELITE_DIR="$SCRIPT_DIR/elite"
@@ -76,6 +77,7 @@ export CC=/usr/bin/gcc-11
 export CXX=/usr/bin/g++-11
 export PYTHONPATH="$ELITE_DIR:${PYTHONPATH:-}"
 export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
+export WANDB_MODE=disabled
 
 echo "Step 1/3 — Preparing video input for ELITE..."
 echo ""
@@ -270,15 +272,20 @@ for subdir in ["images", "fg_masks"]:
     print(f"  [{subdir}] filenames normalized")
 PYEOF
 
-# Stage 1: personalize with real images
-"$ELITE_PYTHON" src/personalize.py \
-    --stage 1 \
-    --exp_path "$EXP_PATH" \
-    --tgt_id "$ID" \
-    --prior_cfg "$ELITE_CFG" \
-    --prior_ckpt "$ELITE_CKPT" \
-    --res "$IMG_RES" \
-    --singleview_bs 1
+# Stage 1: personalize with real images (skip if checkpoint exists)
+ST1_CKPT="$EXP_PATH/st1/checkpoints/st1_final.pth"
+if [ -f "$ST1_CKPT" ]; then
+    echo "  [skip] Stage 1 checkpoint exists: $ST1_CKPT"
+else
+    "$ELITE_PYTHON" src/personalize.py \
+        --stage 1 \
+        --exp_path "$EXP_PATH" \
+        --tgt_id "$ID" \
+        --prior_cfg "$ELITE_CFG" \
+        --prior_ckpt "$ELITE_CKPT" \
+        --res "$IMG_RES" \
+        --singleview_bs 1
+fi
 
 echo ""
 echo "Step 3/3 — Generating synthetic random-expression dataset..."
@@ -287,19 +294,25 @@ ST1_CKPT="$EXP_PATH/st1/checkpoints/st1_final.pth"
 RAND_EXPR_DIR="$EXP_PATH/rand_expr_dataset"
 RAND_IMG_COUNT=$(find "$RAND_EXPR_DIR" -name "*_rdr.png" 2>/dev/null | wc -l)
 if [ ! -f "$RAND_EXPR_DIR/view_idxs.npy" ] || [ "$RAND_IMG_COUNT" -lt 10 ]; then
-    if [ ! -f "$ST1_CKPT" ]; then
-        echo "ERROR: Stage 1 checkpoint not found: $ST1_CKPT"
-        exit 1
-    fi
     "$ELITE_PYTHON" src/infer_randexpr.py \
         --person_id "$ID" \
         --cfg_file "$ELITE_CFG" \
         --ckpt_file "$ST1_CKPT" \
         --num_frames 1000 \
         --res "$IMG_RES"
+    # Rename _rdr.png → _fix.png (dataloader expects *_fix.png)
+    echo "  Renaming _rdr.png → _fix.png..."
+    for f in "$RAND_EXPR_DIR"/*_rdr.png; do
+        [ -f "$f" ] && mv "$f" "${f/_rdr.png/_fix.png}"
+    done
 else
     echo "  [skip] rand_expr_dataset already exists ($RAND_IMG_COUNT images)"
 fi
+
+# Also rename any leftover _rdr.png from a previous partial run
+for f in "$RAND_EXPR_DIR"/*_rdr.png; do
+    [ -f "$f" ] && mv "$f" "${f/_rdr.png/_fix.png}"
+done
 
 echo ""
 echo "Step 3/3 — Personalizing ELITE avatar (stage 2 fine-tuning)..."
@@ -315,15 +328,71 @@ echo ""
     --singleview_bs 1
 
 echo ""
+echo "Step 4/4 — Rendering avatar with original video motion..."
+echo ""
+
+# Build motion npz from Stage 2 per-frame flame_param files
+MOTION_NAME="${ID}_selfreplay"
+MOTION_DIR="$ELITE_DIR/data/drive/$MOTION_NAME"
+NERF_FLAME_DIR="$SCRIPT_DIR/data/processed/${ID}_nerf/flame_param"
+
+if [ ! -f "$MOTION_DIR/tracked_flame_params_30.npz" ] && [ -d "$NERF_FLAME_DIR" ]; then
+    echo "  Building motion sequence from Stage 2 FLAME params..."
+    mkdir -p "$MOTION_DIR"
+    "$ELITE_PYTHON" - <<PYEOF
+import numpy as np, os, glob
+
+flame_dir = "$NERF_FLAME_DIR"
+out_path = "$MOTION_DIR/tracked_flame_params_30.npz"
+
+files = sorted(glob.glob(os.path.join(flame_dir, '*.npz')))
+print(f"  Found {len(files)} frames")
+
+keys = ['translation', 'rotation', 'neck_pose', 'jaw_pose', 'eyes_pose', 'shape', 'expr', 'static_offset']
+merged = {k: [] for k in keys}
+
+for f in files:
+    d = np.load(f)
+    for k in keys:
+        if k in d:
+            merged[k].append(d[k])
+
+for k in keys:
+    if merged[k]:
+        merged[k] = np.stack(merged[k], axis=0)
+    else:
+        print(f"  WARNING: key '{k}' missing from flame params")
+
+np.savez(out_path, **{k: v for k, v in merged.items() if len(v) > 0})
+print(f"  Saved {out_path} ({len(files)} frames)")
+PYEOF
+else
+    echo "  [skip] Motion sequence already exists"
+fi
+
+# Render
+if [ -f "$MOTION_DIR/tracked_flame_params_30.npz" ]; then
+    cd "$ELITE_DIR"
+    source "$HOME/miniconda3/etc/profile.d/conda.sh"
+    conda activate ELITE
+    PYTHONPATH="$ELITE_DIR:${PYTHONPATH:-}" \
+    SINGLEVIEW_PRC_ROOT="$PROCESSED_DIR" \
+    SINGLEVIEW_TRACKED_ROOT="$TRACKED_DIR" \
+    EXP_ROOT="$ELITE_DIR/outputs" \
+    bash scripts/render_videos.sh "$ID" "$MOTION_NAME" "$GPU" 25
+    echo ""
+    echo "  Video saved to: $ELITE_DIR/outputs/$ID/vis_motion/${ID}_rgb_${MOTION_NAME}.mp4"
+else
+    echo "  WARNING: Could not build motion sequence — skipping render"
+fi
+
+echo ""
 echo "================================================"
 echo "  Stage 3 complete!"
 echo "================================================"
 echo ""
 echo "Avatar trained for: $ID"
 echo "Output: $ELITE_DIR/outputs/$ID/"
-echo ""
-echo "To render with a motion sequence:"
-echo "  cd $ELITE_DIR"
-echo "  bash scripts/render_videos.sh $ID <motion_name>"
+echo "Video:  $ELITE_DIR/outputs/$ID/vis_motion/${ID}_rgb_${MOTION_NAME}.mp4"
 echo ""
 echo "Next: bash start.sh  (choose stage 4)"
