@@ -292,7 +292,7 @@ echo "Step 3/3 — Generating synthetic random-expression dataset..."
 echo ""
 ST1_CKPT="$EXP_PATH/st1/checkpoints/st1_final.pth"
 RAND_EXPR_DIR="$EXP_PATH/rand_expr_dataset"
-RAND_IMG_COUNT=$(find "$RAND_EXPR_DIR" -name "*_rdr.png" 2>/dev/null | wc -l)
+RAND_IMG_COUNT=$(find "$RAND_EXPR_DIR" -name "*_fix.png" 2>/dev/null | wc -l)
 if [ ! -f "$RAND_EXPR_DIR/view_idxs.npy" ] || [ "$RAND_IMG_COUNT" -lt 10 ]; then
     "$ELITE_PYTHON" src/infer_randexpr.py \
         --person_id "$ID" \
@@ -306,7 +306,7 @@ if [ ! -f "$RAND_EXPR_DIR/view_idxs.npy" ] || [ "$RAND_IMG_COUNT" -lt 10 ]; then
         [ -f "$f" ] && mv "$f" "${f/_rdr.png/_fix.png}"
     done
 else
-    echo "  [skip] rand_expr_dataset already exists ($RAND_IMG_COUNT images)"
+    echo "  [skip] rand_expr_dataset already exists ($RAND_IMG_COUNT _fix.png images)"
 fi
 
 # Also rename any leftover _rdr.png from a previous partial run
