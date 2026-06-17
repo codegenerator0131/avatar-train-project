@@ -185,6 +185,30 @@ for subdir in ["images", "fg_masks"]:
 PYEOF
 echo "  Using resolution: $IMG_RES"
 
+# Rename images to ELITE format: 00000_00.png → f000000_00.png
+echo "  Checking image filename format..."
+"$ELITE_PYTHON" - <<PYEOF
+import os, re
+
+processed = "$PROCESSED_TARGET"
+for subdir in ["images", "fg_masks"]:
+    folder = os.path.join(processed, subdir)
+    if not os.path.exists(folder):
+        continue
+    files = sorted(os.listdir(folder))
+    needs_rename = any(re.match(r'^\d{5}_\d{2}\.png$', f) for f in files)
+    if not needs_rename:
+        print(f"  [{subdir}] filenames OK")
+        continue
+    print(f"  [{subdir}] renaming {len(files)} files to ELITE format...")
+    for fname in files:
+        m = re.match(r'^(\d{5})(_\d{2}\.png)$', fname)
+        if m:
+            new_name = f"f{int(m.group(1)):06d}{m.group(2)}"
+            os.rename(os.path.join(folder, fname), os.path.join(folder, new_name))
+    print(f"  [{subdir}] rename done")
+PYEOF
+
 # Stage 1: personalize with real images
 "$ELITE_PYTHON" src/personalize.py \
     --stage 1 \
