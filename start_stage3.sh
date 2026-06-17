@@ -281,6 +281,25 @@ PYEOF
     --singleview_bs 1
 
 echo ""
+echo "Step 3/3 — Generating synthetic random-expression dataset..."
+echo ""
+ST1_CKPT="$EXP_PATH/st1/checkpoints/st1_final.pth"
+if [ ! -f "$EXP_PATH/rand_expr_dataset/view_idxs.npy" ]; then
+    if [ ! -f "$ST1_CKPT" ]; then
+        echo "ERROR: Stage 1 checkpoint not found: $ST1_CKPT"
+        exit 1
+    fi
+    "$ELITE_PYTHON" src/infer_randexpr.py \
+        --person_id "$ID" \
+        --cfg_file "$ELITE_CFG" \
+        --ckpt_file "$ST1_CKPT" \
+        --num_frames 1000 \
+        --res "$IMG_RES"
+else
+    echo "  [skip] rand_expr_dataset already exists"
+fi
+
+echo ""
 echo "Step 3/3 — Personalizing ELITE avatar (stage 2 fine-tuning)..."
 echo ""
 # Stage 2: joint finetuning with synthetic images
