@@ -317,15 +317,19 @@ done
 echo ""
 echo "Step 3/3 — Personalizing ELITE avatar (stage 2 fine-tuning)..."
 echo ""
-# Stage 2: joint finetuning with synthetic images
-"$ELITE_PYTHON" src/personalize.py \
-    --stage 2 \
-    --exp_path "$EXP_PATH" \
-    --tgt_id "$ID" \
-    --prior_cfg "$ELITE_CFG" \
-    --prior_ckpt "$ELITE_CKPT" \
-    --res "$IMG_RES" \
-    --singleview_bs 1
+ST2_CKPT="$EXP_PATH/st2/checkpoints/st2_final.pth"
+if [ -f "$ST2_CKPT" ]; then
+    echo "  [skip] Stage 2 checkpoint exists: $ST2_CKPT"
+else
+    "$ELITE_PYTHON" src/personalize.py \
+        --stage 2 \
+        --exp_path "$EXP_PATH" \
+        --tgt_id "$ID" \
+        --prior_cfg "$ELITE_CFG" \
+        --prior_ckpt "$ELITE_CKPT" \
+        --res "$IMG_RES" \
+        --singleview_bs 1
+fi
 
 echo ""
 echo "Step 4/4 — Rendering avatar with original video motion..."
@@ -373,8 +377,8 @@ fi
 # Render
 if [ -f "$MOTION_DIR/tracked_flame_params_30.npz" ]; then
     cd "$ELITE_DIR"
-    source "$HOME/miniconda3/etc/profile.d/conda.sh"
-    conda activate ELITE
+    source "$HOME/miniconda3/etc/profile.d/conda.sh" 2>/dev/null || true
+    conda activate ELITE 2>/dev/null || true
     PYTHONPATH="$ELITE_DIR:${PYTHONPATH:-}" \
     SINGLEVIEW_PRC_ROOT="$PROCESSED_DIR" \
     SINGLEVIEW_TRACKED_ROOT="$TRACKED_DIR" \
