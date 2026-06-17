@@ -142,6 +142,9 @@ echo ""
 echo "Step 3/3 — Personalizing ELITE avatar (stage 1)..."
 echo ""
 cd "$ELITE_DIR"
+
+# Symlink entire asset folder from project root into elite/ (idempotent)
+ln -sfn "$SCRIPT_DIR/asset" "$ELITE_DIR/asset"
 EXP_PATH="$EXP_ROOT/$ID"
 mkdir -p "$EXP_PATH"
 

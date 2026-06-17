@@ -287,13 +287,14 @@ else
     sed -i "s|anaconda3/etc/profile.d/conda.sh|miniconda3/etc/profile.d/conda.sh|g" \
         "$ELITE_DIR/configs/paths.sh"
 
-    # Symlink FLAME assets into elite/asset/flame/
-    mkdir -p "$ELITE_DIR/asset/flame"
-    ln -sf "$SCRIPT_DIR/data/flame/flame2023.pkl"  "$ELITE_DIR/asset/flame/flame2023.pkl"
-    ln -sf "$SCRIPT_DIR/data/flame/FLAME_masks.pkl" "$ELITE_DIR/asset/flame/FLAME_masks.pkl"
-
     echo "  conda env 'ELITE' ready."
 fi
+
+# Always ensure FLAME assets are symlinked (runs every time, idempotent)
+mkdir -p "$ELITE_DIR/asset/flame"
+ln -sf "$SCRIPT_DIR/data/flame/flame2023.pkl"  "$ELITE_DIR/asset/flame/flame2023.pkl"
+ln -sf "$SCRIPT_DIR/data/flame/FLAME_masks.pkl" "$ELITE_DIR/asset/flame/FLAME_masks.pkl"
+echo "  FLAME assets symlinked into elite/asset/flame/"
 
 # --- ELITE checkpoints (must be placed manually)
 mkdir -p "$ELITE_DIR/checkpoints"
