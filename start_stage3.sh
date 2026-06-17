@@ -185,6 +185,31 @@ for subdir in ["images", "fg_masks"]:
 PYEOF
 echo "  Using resolution: $IMG_RES"
 
+# Patch transforms.json: add "f" prefix to timestep_id so ELITE's ts[1:] gives correct filename
+echo "  Patching transforms.json timestep_id format..."
+"$ELITE_PYTHON" - <<PYEOF
+import json, os
+
+for fname in ["transforms.json", "transforms_train.json", "transforms_val.json"]:
+    path = os.path.join("$PROCESSED_TARGET", fname)
+    if not os.path.exists(path):
+        continue
+    with open(path) as f:
+        data = json.load(f)
+    changed = False
+    for frame in data.get("frames", []):
+        ts = frame.get("timestep_id", "")
+        if ts and not ts.startswith("f"):
+            frame["timestep_id"] = "f" + ts
+            changed = True
+    if changed:
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2)
+        print(f"  Patched {fname}")
+    else:
+        print(f"  {fname} already OK")
+PYEOF
+
 # Normalize image filenames to match transforms.json timestep_id format (6-digit, no prefix)
 echo "  Checking image filename format..."
 "$ELITE_PYTHON" - <<PYEOF
