@@ -185,7 +185,7 @@ for subdir in ["images", "fg_masks"]:
 PYEOF
 echo "  Using resolution: $IMG_RES"
 
-# Rename images to ELITE format: 00000_00.png → f000000_00.png
+# Normalize image filenames to match transforms.json timestep_id format (6-digit, no prefix)
 echo "  Checking image filename format..."
 "$ELITE_PYTHON" - <<PYEOF
 import os, re
@@ -196,17 +196,19 @@ for subdir in ["images", "fg_masks"]:
     if not os.path.exists(folder):
         continue
     files = sorted(os.listdir(folder))
-    needs_rename = any(re.match(r'^\d{5}_\d{2}\.png$', f) for f in files)
-    if not needs_rename:
-        print(f"  [{subdir}] filenames OK")
-        continue
-    print(f"  [{subdir}] renaming {len(files)} files to ELITE format...")
     for fname in files:
+        # Revert f000000_00.png → 000000_00.png
+        m = re.match(r'^f(\d{6})(_\d{2}\.png)$', fname)
+        if m:
+            new_name = f"{m.group(1)}{m.group(2)}"
+            os.rename(os.path.join(folder, fname), os.path.join(folder, new_name))
+            continue
+        # Rename 00000_00.png → 000000_00.png (5-digit to 6-digit)
         m = re.match(r'^(\d{5})(_\d{2}\.png)$', fname)
         if m:
-            new_name = f"f{int(m.group(1)):06d}{m.group(2)}"
+            new_name = f"{int(m.group(1)):06d}{m.group(2)}"
             os.rename(os.path.join(folder, fname), os.path.join(folder, new_name))
-    print(f"  [{subdir}] rename done")
+    print(f"  [{subdir}] filenames normalized")
 PYEOF
 
 # Stage 1: personalize with real images
