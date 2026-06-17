@@ -185,6 +185,25 @@ for subdir in ["images", "fg_masks"]:
 PYEOF
 echo "  Using resolution: $IMG_RES"
 
+# Patch tracked_flame_params_30.npz: add "f" prefix to timestep_id
+# ELITE uses ts[1:] to build filename, so "f000000" -> ts[1:] = "000000" matches our images
+echo "  Patching tracked_flame_params_30.npz timestep_id..."
+"$ELITE_PYTHON" - <<PYEOF
+import numpy as np, os, glob
+
+tracked = "$TRACKED_TARGET"
+npz_files = glob.glob(os.path.join(tracked, '*', 'tracked_flame_params_30.npz'))
+for npz_path in npz_files:
+    d = dict(np.load(npz_path, allow_pickle=True))
+    ts = d['timestep_id']
+    if len(ts) > 0 and not str(ts[0]).startswith('f'):
+        d['timestep_id'] = np.array(['f' + str(t) for t in ts])
+        np.savez(npz_path, **d)
+        print(f"  Patched {npz_path}: {ts[0]} -> f{ts[0]}")
+    else:
+        print(f"  {npz_path} already OK: {ts[0]}")
+PYEOF
+
 # Patch transforms.json: add "f" prefix to timestep_id so ELITE's ts[1:] gives correct filename
 echo "  Patching transforms.json timestep_id format..."
 "$ELITE_PYTHON" - <<PYEOF
