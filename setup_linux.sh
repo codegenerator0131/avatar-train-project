@@ -223,9 +223,85 @@ else
     echo "  conda env 'vhap' ready."
 fi
 
+echo "== [7/7] ELITE submodule (Stage 3 Gaussian avatar) =="
+ELITE_DIR="$SCRIPT_DIR/elite"
+if [ -f "$ELITE_DIR/src/render.py" ]; then
+    echo "  [skip] ELITE submodule already present"
+else
+    echo "  Adding ELITE submodule..."
+    cd "$SCRIPT_DIR"
+    git submodule add https://github.com/kaist-ami/ELITE.git elite || true
+    git submodule update --init --recursive
+fi
+
+ELITE_CONDA="$HOME/miniconda3/bin/conda"
+ELITE_PIP="$HOME/miniconda3/envs/ELITE/bin/pip"
+ELITE_PYTHON="$HOME/miniconda3/envs/ELITE/bin/python"
+
+if conda env list | grep -q "^ELITE "; then
+    echo "  [skip] conda env 'ELITE' already exists"
+else
+    echo "  Creating conda env 'ELITE'..."
+    "$ELITE_CONDA" create --name ELITE -y python=3.10
+
+    export CC=/usr/bin/gcc-11
+    export CXX=/usr/bin/g++-11
+    # Install gcc-11 if missing
+    if ! command -v gcc-11 >/dev/null 2>&1; then
+        sudo apt install -y gcc-11 g++-11 || true
+    fi
+
+    # Core deps
+    "$ELITE_PIP" install --upgrade pip setuptools==69.5.1 wheel
+    "$ELITE_PIP" install -r "$ELITE_DIR/requirements.txt" --extra-index-url https://download.pytorch.org/whl/cu118
+
+    # pytorch3d pre-built wheel (py310 + cu118 + pyt201)
+    "$ELITE_PIP" install --no-index --no-cache-dir pytorch3d \
+        -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu118_pyt201/download.html
+
+    # diff-surfel-rasterization
+    CC=gcc-11 CXX=g++-11 "$ELITE_PIP" install --no-build-isolation \
+        git+https://github.com/hbb1/diff-surfel-rasterization.git
+
+    # Install VHAP from elite's submodule
+    "$ELITE_PIP" install --no-build-isolation -e "$ELITE_DIR/vhap/" --no-deps
+
+    # Patch configs/paths.sh with correct conda path
+    sed -i "s|anaconda3/etc/profile.d/conda.sh|miniconda3/etc/profile.d/conda.sh|g" \
+        "$ELITE_DIR/configs/paths.sh"
+
+    # Symlink FLAME assets into elite/asset/flame/
+    mkdir -p "$ELITE_DIR/asset/flame"
+    ln -sf "$SCRIPT_DIR/data/flame/flame2023.pkl"  "$ELITE_DIR/asset/flame/flame2023.pkl"
+    ln -sf "$SCRIPT_DIR/data/flame/FLAME_masks.pkl" "$ELITE_DIR/asset/flame/FLAME_masks.pkl"
+
+    echo "  conda env 'ELITE' ready."
+fi
+
+# --- ELITE checkpoints (must be placed manually)
+mkdir -p "$ELITE_DIR/checkpoints"
+if [ -f "$ELITE_DIR/checkpoints/3d_prior.pth" ] && [ -f "$ELITE_DIR/checkpoints/2d_prior.pth" ]; then
+    echo "  [skip] ELITE checkpoints already present"
+else
+    echo ""
+    echo "  -------------------------------------------------------"
+    echo "  ACTION REQUIRED: ELITE checkpoints not found."
+    echo "  Download from:"
+    echo "    https://drive.google.com/drive/folders/1GKVymlwRi9shK0G2Qi5JrOFfkIdyUaHM"
+    echo "  Place at:"
+    echo "    $ELITE_DIR/checkpoints/3d_prior.pth"
+    echo "    $ELITE_DIR/checkpoints/2d_prior.pth"
+    echo "  Then re-run: bash start_stage3.sh"
+    echo "  -------------------------------------------------------"
+    echo ""
+fi
+
 echo ""
 echo "Setup complete. Now run:"
 echo "  source venv/bin/activate && python verify_env.py"
 echo ""
 echo "To run Stage 2 (VHAP tracking):"
 echo "  bash start_stage2.sh"
+echo ""
+echo "To run Stage 3 (Gaussian avatar):"
+echo "  bash start_stage3.sh"

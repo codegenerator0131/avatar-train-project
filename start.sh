@@ -19,6 +19,7 @@ echo ""
 echo "Which stage do you want to run?"
 echo "  1) Stage 1 — Capture    (video → frames + audio)"
 echo "  2) Stage 2 — Tracking   (video → FLAME params + camera poses)"
+echo "  3) Stage 3 — Avatar     (tracking → 3D Gaussian avatar)"
 echo ""
 read -rp "Enter stage [1]: " STAGE
 STAGE="${STAGE:-1}"
@@ -27,8 +28,9 @@ echo ""
 case "$STAGE" in
     1) bash "$SCRIPT_DIR/start_stage1.sh" ;;
     2) bash "$SCRIPT_DIR/start_stage2.sh" ;;
+    3) bash "$SCRIPT_DIR/start_stage3.sh" ;;
     *)
-        echo "Unknown stage: $STAGE. Enter 1 or 2."
+        echo "Unknown stage: $STAGE. Enter 1, 2, or 3."
         exit 1
         ;;
 esac
