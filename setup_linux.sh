@@ -241,11 +241,14 @@ ELITE_CONDA="$HOME/miniconda3/bin/conda"
 ELITE_PIP="$HOME/miniconda3/envs/ELITE/bin/pip"
 ELITE_PYTHON="$HOME/miniconda3/envs/ELITE/bin/python"
 
-if conda env list | grep -q "^ELITE "; then
-    echo "  [skip] conda env 'ELITE' already exists"
+if "$HOME/miniconda3/envs/ELITE/bin/python" -c "import torch" &>/dev/null 2>&1; then
+    echo "  [skip] conda env 'ELITE' already installed"
 else
-    echo "  Creating conda env 'ELITE'..."
-    "$ELITE_CONDA" create --name ELITE -y python=3.10
+    echo "  Installing ELITE conda env packages..."
+    # Create env if it doesn't exist yet
+    if ! conda env list | grep -q "^ELITE "; then
+        "$ELITE_CONDA" create --name ELITE -y python=3.10
+    fi
 
     export CC=/usr/bin/gcc-11
     export CXX=/usr/bin/g++-11
