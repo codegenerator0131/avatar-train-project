@@ -156,22 +156,35 @@ done
 EXP_PATH="$EXP_ROOT/$ID"
 mkdir -p "$EXP_PATH"
 
-# Auto-detect resolution from processed images
-SAMPLE_IMG=$(find "$PROCESSED_TARGET/images" -name "*.png" | head -1)
+# ELITE only supports 512x512 or 802x550
+# Resize processed images to 512x512 if needed
+SAMPLE_IMG=$(find "$PROCESSED_TARGET/images" -name "*.png" 2>/dev/null | head -1 || true)
+IMG_RES="512x512"
 if [ -n "$SAMPLE_IMG" ]; then
-    IMG_RES=$("$ELITE_PYTHON" -c "
-from PIL import Image
-img = Image.open('$SAMPLE_IMG')
-w, h = img.size
-if h == 550 and w == 802:
-    print('802x550')
-else:
-    print('512x512')
-")
-else
-    IMG_RES="512x512"
+    DIMS=$(python3 -c "
+import struct, zlib
+with open('$SAMPLE_IMG','rb') as f:
+    f.read(16)
+    w=struct.unpack('>I',f.read(4))[0]
+    h=struct.unpack('>I',f.read(4))[0]
+print(f'{w}x{h}')
+" 2>/dev/null || echo "unknown")
+    echo "  Image size detected: $DIMS"
+    if [ "$DIMS" != "512x512" ] && [ "$DIMS" != "802x550" ]; then
+        echo "  Resizing images to 512x512 for ELITE compatibility..."
+        for subdir in images fg_masks; do
+            if [ -d "$PROCESSED_TARGET/$subdir" ]; then
+                for img in "$PROCESSED_TARGET/$subdir/"*.png; do
+                    mogrify -resize 512x512! "$img" 2>/dev/null || \
+                    ffmpeg -i "$img" -vf scale=512:512 "${img%.png}_tmp.png" -y -loglevel quiet && \
+                    mv "${img%.png}_tmp.png" "$img" 2>/dev/null || true
+                done
+            fi
+        done
+        echo "  Resize done."
+    fi
 fi
-echo "  Detected resolution: $IMG_RES"
+echo "  Using resolution: $IMG_RES"
 
 # Stage 1: personalize with real images
 "$ELITE_PYTHON" src/personalize.py \
