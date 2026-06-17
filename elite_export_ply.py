@@ -101,9 +101,14 @@ def main():
 
     with torch.no_grad():
         batch = ds[0]
-        # Add batch dimension
-        batch = {k: v.unsqueeze(0).to(device) if isinstance(v, torch.Tensor) else v
-                 for k, v in batch.items()}
+        # Convert all arrays to tensors and add batch dimension
+        def to_tensor(v):
+            if isinstance(v, torch.Tensor):
+                return v.unsqueeze(0).to(device)
+            elif isinstance(v, np.ndarray):
+                return torch.from_numpy(v).unsqueeze(0).to(device)
+            return v
+        batch = {k: to_tensor(v) for k, v in batch.items()}
 
         flame_verts_posed, _, _ = process_flame(batch, flame)
 
