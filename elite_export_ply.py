@@ -8,7 +8,7 @@ import yaml
 # Must be run from elite/ directory with PYTHONPATH=elite/
 from src.models.mesh_unet import MeshUNetPriorModel2DGS
 from src.utils.utils import load_geo_fn_flame, process_flame
-from src.dataloader.test_dataloader import MeshUNetSingleViewDataset
+from src.dataloader.test_dataloader import MeshUNetRandomExprRenderDataset
 from src.config import NS_GEO_STATS_ROOT
 from vhap.model.flame import FlameHead
 
@@ -92,12 +92,11 @@ def main():
     geouv_std  = torch.from_numpy(np.load(str(NS_GEO_STATS_ROOT / 'ns_geo_uv_std.npy'))).to(device)
 
     res = (802, 550) if args.res == '802x550' else (512, 512)
-    ds = MeshUNetSingleViewDataset(
+    ds = MeshUNetRandomExprRenderDataset(
         pid=args.person_id,
+        num_frames=1,
         uv_res=(512, 512),
         res=res,
-        split='val',
-        num_frames=1,
     )
 
     with torch.no_grad():
