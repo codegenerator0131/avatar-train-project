@@ -241,7 +241,7 @@ ELITE_CONDA="$HOME/miniconda3/bin/conda"
 ELITE_PIP="$HOME/miniconda3/envs/ELITE/bin/pip"
 ELITE_PYTHON="$HOME/miniconda3/envs/ELITE/bin/python"
 
-if "$HOME/miniconda3/envs/ELITE/bin/python" -c "import torch" &>/dev/null 2>&1; then
+if "$HOME/miniconda3/envs/ELITE/bin/python" -c "import torch; import diff_surfel_rasterization" &>/dev/null 2>&1; then
     echo "  [skip] conda env 'ELITE' already installed"
 else
     echo "  Installing ELITE conda env packages..."
