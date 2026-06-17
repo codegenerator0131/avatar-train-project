@@ -128,17 +128,32 @@ else
 fi
 
 echo ""
-echo "Step 3/3 — Personalizing ELITE avatar..."
+echo "Step 3/3 — Personalizing ELITE avatar (stage 1)..."
 echo ""
 cd "$ELITE_DIR"
+EXP_PATH="$EXP_ROOT/$ID"
+mkdir -p "$EXP_PATH"
+
+# Stage 1: personalize with real images
 "$ELITE_PYTHON" src/personalize.py \
-    --cfg_file "$ELITE_CFG" \
-    --ckpt_file "$ELITE_CKPT" \
-    --person_id "$ID" \
-    --data_root "$PROCESSED_TARGET" \
-    --exp_root "$EXP_ROOT" \
-    --hufix_ckpt "$HUFIX_CKPT" \
-    --gpu "$GPU"
+    --stage 1 \
+    --exp_path "$EXP_PATH" \
+    --tgt_id "$ID" \
+    --prior_cfg "$ELITE_CFG" \
+    --prior_ckpt "$ELITE_CKPT" \
+    --res 512x512
+
+echo ""
+echo "Step 3/3 — Personalizing ELITE avatar (stage 2 fine-tuning)..."
+echo ""
+# Stage 2: joint finetuning with synthetic images
+"$ELITE_PYTHON" src/personalize.py \
+    --stage 2 \
+    --exp_path "$EXP_PATH" \
+    --tgt_id "$ID" \
+    --prior_cfg "$ELITE_CFG" \
+    --prior_ckpt "$ELITE_CKPT" \
+    --res 512x512
 
 echo ""
 echo "================================================"
