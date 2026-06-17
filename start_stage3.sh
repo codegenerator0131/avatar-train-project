@@ -143,8 +143,16 @@ echo "Step 3/3 — Personalizing ELITE avatar (stage 1)..."
 echo ""
 cd "$ELITE_DIR"
 
-# Symlink entire asset folder from project root into elite/ (idempotent)
-ln -sfn "$SCRIPT_DIR/asset" "$ELITE_DIR/asset"
+# Ensure elite/asset/flame/ has the FLAME files
+mkdir -p "$ELITE_DIR/asset/flame"
+ln -sf "$SCRIPT_DIR/asset/flame/flame2023.pkl" "$ELITE_DIR/asset/flame/flame2023.pkl"
+ln -sf "$SCRIPT_DIR/asset/flame/FLAME_masks.pkl" "$ELITE_DIR/asset/flame/FLAME_masks.pkl"
+ln -sf "$SCRIPT_DIR/asset/flame/mediapipe_landmark_embedding.npz" "$ELITE_DIR/asset/flame/mediapipe_landmark_embedding.npz" 2>/dev/null || true
+# Copy any other files from asset/flame that ELITE may need
+for f in "$SCRIPT_DIR/asset/flame/"*; do
+    fname="$(basename "$f")"
+    [ ! -e "$ELITE_DIR/asset/flame/$fname" ] && ln -sf "$f" "$ELITE_DIR/asset/flame/$fname" || true
+done
 EXP_PATH="$EXP_ROOT/$ID"
 mkdir -p "$EXP_PATH"
 
