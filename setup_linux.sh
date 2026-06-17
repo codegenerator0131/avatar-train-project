@@ -257,9 +257,13 @@ else
         sudo apt install -y gcc-11 g++-11 || true
     fi
 
-    # Core deps
+    # Core deps — install pip into env first, then upgrade
+    "$ELITE_CONDA" install -y -n ELITE pip
     "$ELITE_PIP" install --upgrade pip setuptools==69.5.1 wheel
-    "$ELITE_PIP" install -r "$ELITE_DIR/requirements.txt" --extra-index-url https://download.pytorch.org/whl/cu118
+    # Install requirements excluding chumpy (broken build) — install it separately from source
+    grep -v "^chumpy" "$ELITE_DIR/requirements.txt" > /tmp/elite_requirements.txt
+    "$ELITE_PIP" install -r /tmp/elite_requirements.txt --extra-index-url https://download.pytorch.org/whl/cu118
+    "$ELITE_PIP" install --no-build-isolation git+https://github.com/mattloper/chumpy.git
 
     # pytorch3d pre-built wheel (py310 + cu118 + pyt201)
     "$ELITE_PIP" install --no-index --no-cache-dir pytorch3d \
