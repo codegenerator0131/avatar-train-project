@@ -156,34 +156,33 @@ done
 EXP_PATH="$EXP_ROOT/$ID"
 mkdir -p "$EXP_PATH"
 
-# ELITE only supports 512x512 or 802x550
-# Resize processed images to 512x512 if needed
-SAMPLE_IMG=$(find "$PROCESSED_TARGET/images" -name "*.png" 2>/dev/null | head -1 || true)
+# ELITE only supports 512x512 or 802x550 — auto-resize if needed
 IMG_RES="512x512"
-if [ -n "$SAMPLE_IMG" ]; then
-    DIMS=$(python3 -c "
-import struct, zlib
-with open('$SAMPLE_IMG','rb') as f:
-    f.read(16)
-    w=struct.unpack('>I',f.read(4))[0]
-    h=struct.unpack('>I',f.read(4))[0]
-print(f'{w}x{h}')
-" 2>/dev/null || echo "unknown")
-    echo "  Image size detected: $DIMS"
-    if [ "$DIMS" != "512x512" ] && [ "$DIMS" != "802x550" ]; then
-        echo "  Resizing images to 512x512 for ELITE compatibility..."
-        for subdir in images fg_masks; do
-            if [ -d "$PROCESSED_TARGET/$subdir" ]; then
-                for img in "$PROCESSED_TARGET/$subdir/"*.png; do
-                    mogrify -resize 512x512! "$img" 2>/dev/null || \
-                    ffmpeg -i "$img" -vf scale=512:512 "${img%.png}_tmp.png" -y -loglevel quiet && \
-                    mv "${img%.png}_tmp.png" "$img" 2>/dev/null || true
-                done
-            fi
-        done
-        echo "  Resize done."
-    fi
-fi
+echo "  Checking image resolution..."
+"$ELITE_PYTHON" - <<PYEOF
+import os, struct
+from PIL import Image
+
+processed = "$PROCESSED_TARGET"
+for subdir in ["images", "fg_masks"]:
+    folder = os.path.join(processed, subdir)
+    if not os.path.exists(folder):
+        continue
+    files = sorted([f for f in os.listdir(folder) if f.endswith(".png")])
+    if not files:
+        continue
+    sample = Image.open(os.path.join(folder, files[0]))
+    w, h = sample.size
+    if (w, h) == (512, 512) or (w, h) == (802, 550):
+        print(f"  [{subdir}] {w}x{h} — OK")
+        continue
+    print(f"  [{subdir}] {w}x{h} — resizing to 512x512...")
+    for fname in files:
+        path = os.path.join(folder, fname)
+        img = Image.open(path).resize((512, 512), Image.LANCZOS)
+        img.save(path)
+    print(f"  [{subdir}] resize done ({len(files)} files)")
+PYEOF
 echo "  Using resolution: $IMG_RES"
 
 # Stage 1: personalize with real images
