@@ -95,12 +95,23 @@ else
     echo "  [skip] Video already at $TARGET_VIDEO"
 fi
 
-# --- Check if Stage 2 output can be reused
+# --- Reuse Stage 2 VHAP output (both tracked + processed)
 PROCESSED_TARGET="$PROCESSED_DIR/${ID}${PROCESSED_SUFFIX}"
+TRACKED_TARGET="$TRACKED_DIR/${ID}_whiteBg_staticOffset"
+STAGE2_TRACKED="$SCRIPT_DIR/data/processed/${ID}_vhap"
+
+mkdir -p "$PROCESSED_DIR" "$TRACKED_DIR"
+
 if [ -d "$STAGE2_OUTPUT" ] && [ ! -d "$PROCESSED_TARGET" ]; then
-    echo "  Reusing Stage 2 VHAP output..."
+    echo "  Reusing Stage 2 processed output..."
     ln -sfn "$STAGE2_OUTPUT" "$PROCESSED_TARGET"
     echo "  Symlinked $STAGE2_OUTPUT → $PROCESSED_TARGET"
+fi
+
+if [ -d "$STAGE2_TRACKED" ] && [ ! -d "$TRACKED_TARGET" ]; then
+    echo "  Reusing Stage 2 tracked output..."
+    ln -sfn "$STAGE2_TRACKED" "$TRACKED_TARGET"
+    echo "  Symlinked $STAGE2_TRACKED → $TRACKED_TARGET"
 fi
 
 echo ""
