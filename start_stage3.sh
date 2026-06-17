@@ -360,7 +360,7 @@ MOTION_NAME="${ID}_selfreplay"
 MOTION_DIR="$ELITE_DIR/data/drive/$MOTION_NAME"
 NERF_FLAME_DIR="$SCRIPT_DIR/data/processed/${ID}_nerf/flame_param"
 
-if [ ! -f "$MOTION_DIR/tracked_flame_params_30.npz" ] && [ -d "$NERF_FLAME_DIR" ]; then
+if [ ! -f "$MOTION_DIR/tracked_flame_params_30.npz" ] || [ ! -f "$MOTION_DIR/transforms.json" ] && [ -d "$NERF_FLAME_DIR" ]; then
     echo "  Building motion sequence from Stage 2 FLAME params..."
     mkdir -p "$MOTION_DIR"
     "$ELITE_PYTHON" - <<PYEOF
@@ -390,6 +390,11 @@ for k in keys:
 np.savez(out_path, **{k: v for k, v in merged.items() if len(v) > 0})
 print(f"  Saved {out_path} ({len(files)} frames)")
 PYEOF
+    # Copy transforms.json (render.py needs camera poses)
+    NERF_DIR="$SCRIPT_DIR/data/processed/${ID}_nerf"
+    for tf in transforms.json transforms_train.json transforms_val.json; do
+        [ -f "$NERF_DIR/$tf" ] && cp "$NERF_DIR/$tf" "$MOTION_DIR/$tf" && echo "  Copied $tf"
+    done
 else
     echo "  [skip] Motion sequence already exists"
 fi
