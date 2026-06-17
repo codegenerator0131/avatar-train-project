@@ -395,17 +395,48 @@ else
 fi
 
 # Render
-if [ -f "$MOTION_DIR/tracked_flame_params_30.npz" ]; then
+VIDEO_OUT="$ELITE_DIR/outputs/$ID/vis_motion/${ID}_rgb_${MOTION_NAME}.mp4"
+if [ -f "$VIDEO_OUT" ]; then
+    echo "  [skip] Video already exists: $VIDEO_OUT"
+elif [ -f "$MOTION_DIR/tracked_flame_params_30.npz" ]; then
     cd "$ELITE_DIR"
-    source "$HOME/miniconda3/etc/profile.d/conda.sh" 2>/dev/null || true
-    conda activate ELITE 2>/dev/null || true
+    EXP_DIR="$ELITE_DIR/outputs/$ID"
+    VIS_MOTION="$EXP_DIR/vis_motion"
+    mkdir -p "$VIS_MOTION"
+
+    # Run render.py directly (bypass render_videos.sh conda activation issue)
     PYTHONPATH="$ELITE_DIR:${PYTHONPATH:-}" \
     SINGLEVIEW_PRC_ROOT="$PROCESSED_DIR" \
     SINGLEVIEW_TRACKED_ROOT="$TRACKED_DIR" \
     EXP_ROOT="$ELITE_DIR/outputs" \
-    bash scripts/render_videos.sh "$ID" "$MOTION_NAME" "$GPU" 25
+    "$ELITE_PYTHON" src/render.py \
+        --cfg_file "$EXP_DIR/st2/config.yaml" \
+        --ckpt_file "$EXP_DIR/st2/checkpoints/st2_final.pth" \
+        --person_id "$ID" \
+        --motion_samples_dir "$MOTION_DIR" \
+        --stage 2 \
+        --cam_path motion_id \
+        --save_fps 25 \
+        --motion_id "$MOTION_NAME"
+
+    # Post-process with HuFix
+    REF_IMAGE="$PROCESSED_DIR/${ID}${PROCESSED_SUFFIX}/images/000000_00.png"
+    PYTHONPATH="$ELITE_DIR:${PYTHONPATH:-}" \
+    "$ELITE_PYTHON" hufix/src/post_process.py \
+        --ref_image "$REF_IMAGE" \
+        --input_rgb "$VIS_MOTION/st2_rgb/$MOTION_NAME" \
+        --input_nrm "$VIS_MOTION/st2_nrm/$MOTION_NAME" \
+        --save_dir_rgb "$VIS_MOTION/st2_rgb/${MOTION_NAME}_difix" \
+        --save_dir_nrm "$VIS_MOTION/st2_nrm/${MOTION_NAME}_difix" \
+        --save_fps 25 \
+        --model_path "$HUFIX_CKPT"
+
+    # Rename final videos
+    mv "$VIS_MOTION/final_rgb_${MOTION_NAME}_difix.mp4" "$VIDEO_OUT" 2>/dev/null || true
+    mv "$VIS_MOTION/final_nrm_${MOTION_NAME}_difix.mp4" "$VIS_MOTION/${ID}_nrm_${MOTION_NAME}.mp4" 2>/dev/null || true
+
     echo ""
-    echo "  Video saved to: $ELITE_DIR/outputs/$ID/vis_motion/${ID}_rgb_${MOTION_NAME}.mp4"
+    echo "  Video saved to: $VIDEO_OUT"
 else
     echo "  WARNING: Could not build motion sequence — skipping render"
 fi
