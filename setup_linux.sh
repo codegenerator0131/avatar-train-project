@@ -260,17 +260,24 @@ else
     # Core deps — install pip into env first, then upgrade
     "$ELITE_CONDA" install -y -n ELITE pip
     "$ELITE_PIP" install --upgrade pip setuptools==69.5.1 wheel
-    # Install requirements excluding chumpy (broken build) — install it separately from source
-    grep -v "^chumpy" "$ELITE_DIR/requirements.txt" > /tmp/elite_requirements.txt
-    "$ELITE_PIP" install -r /tmp/elite_requirements.txt --extra-index-url https://download.pytorch.org/whl/cu118
+    # Install requirements excluding chumpy and torch (we pin specific versions below)
+    grep -v "^chumpy\|^torch=\|^torchvision=\|^torchaudio=\|^triton=" "$ELITE_DIR/requirements.txt" > /tmp/elite_requirements.txt
+    "$ELITE_PIP" install -r /tmp/elite_requirements.txt
     "$ELITE_PIP" install --no-build-isolation git+https://github.com/mattloper/chumpy.git
 
-    # pytorch3d pre-built wheel (py310 + cu118 + pyt201)
-    "$ELITE_PIP" install --no-index --no-cache-dir pytorch3d \
-        -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu118_pyt201/download.html
+    # Use cu121 torch — matches pytorch3d pre-built wheel AND works with CUDA 13.2 driver
+    "$ELITE_PIP" install torch==2.1.0 torchvision==0.16.0 --index-url https://download.pytorch.org/whl/cu121
 
-    # diff-surfel-rasterization
-    CC=gcc-11 CXX=g++-11 "$ELITE_PIP" install --no-build-isolation \
+    # pytorch3d pre-built wheel (py310 + cu121 + pyt210)
+    "$ELITE_PIP" install https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu121_pyt210/pytorch3d-0.7.5-cp310-cp310-linux_x86_64.whl
+
+    # diff-surfel-rasterization — needs CUDA_HOME pointing to conda cuda-toolkit
+    "$ELITE_CONDA" install -y -n ELITE -c "nvidia/label/cuda-12.1.1" cuda-toolkit ninja cmake
+    export CUDA_HOME="$HOME/miniconda3/envs/ELITE"
+    export CC=/usr/bin/gcc-11
+    export CXX=/usr/bin/g++-11
+    CUDA_HOME="$HOME/miniconda3/envs/ELITE" CC=gcc-11 CXX=g++-11 \
+        "$ELITE_PIP" install --no-build-isolation \
         git+https://github.com/hbb1/diff-surfel-rasterization.git
 
     # Install VHAP from elite's submodule
