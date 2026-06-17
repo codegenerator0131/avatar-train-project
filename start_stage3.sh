@@ -75,6 +75,7 @@ export LOG_ROOT="$ELITE_DIR/logs"
 export CC=/usr/bin/gcc-11
 export CXX=/usr/bin/g++-11
 export PYTHONPATH="$ELITE_DIR:${PYTHONPATH:-}"
+export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
 
 echo "Step 1/3 — Preparing video input for ELITE..."
 echo ""
@@ -277,7 +278,7 @@ PYEOF
     --prior_cfg "$ELITE_CFG" \
     --prior_ckpt "$ELITE_CKPT" \
     --res "$IMG_RES" \
-    --singleview_bs 4
+    --singleview_bs 1
 
 echo ""
 echo "Step 3/3 — Personalizing ELITE avatar (stage 2 fine-tuning)..."
@@ -290,7 +291,7 @@ echo ""
     --prior_cfg "$ELITE_CFG" \
     --prior_ckpt "$ELITE_CKPT" \
     --res "$IMG_RES" \
-    --singleview_bs 4
+    --singleview_bs 1
 
 echo ""
 echo "================================================"
