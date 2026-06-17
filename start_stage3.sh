@@ -156,6 +156,23 @@ done
 EXP_PATH="$EXP_ROOT/$ID"
 mkdir -p "$EXP_PATH"
 
+# Auto-detect resolution from processed images
+SAMPLE_IMG=$(find "$PROCESSED_TARGET/images" -name "*.png" | head -1)
+if [ -n "$SAMPLE_IMG" ]; then
+    IMG_RES=$("$ELITE_PYTHON" -c "
+from PIL import Image
+img = Image.open('$SAMPLE_IMG')
+w, h = img.size
+if h == 550 and w == 802:
+    print('802x550')
+else:
+    print('512x512')
+")
+else
+    IMG_RES="512x512"
+fi
+echo "  Detected resolution: $IMG_RES"
+
 # Stage 1: personalize with real images
 "$ELITE_PYTHON" src/personalize.py \
     --stage 1 \
@@ -163,7 +180,7 @@ mkdir -p "$EXP_PATH"
     --tgt_id "$ID" \
     --prior_cfg "$ELITE_CFG" \
     --prior_ckpt "$ELITE_CKPT" \
-    --res 512x512
+    --res "$IMG_RES"
 
 echo ""
 echo "Step 3/3 — Personalizing ELITE avatar (stage 2 fine-tuning)..."
@@ -175,7 +192,7 @@ echo ""
     --tgt_id "$ID" \
     --prior_cfg "$ELITE_CFG" \
     --prior_ckpt "$ELITE_CKPT" \
-    --res 512x512
+    --res "$IMG_RES"
 
 echo ""
 echo "================================================"
