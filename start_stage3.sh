@@ -332,7 +332,7 @@ else
 fi
 
 echo ""
-echo "Step 4/4 — Exporting PLY + rendering video..."
+echo "Step 4/4 — Exporting PLY..."
 echo ""
 
 # Export PLY
@@ -353,98 +353,6 @@ if [ ! -f "$PLY_OUT" ]; then
 else
     echo "  [skip] PLY already exists: $PLY_OUT"
 fi
-echo ""
-
-# Build motion npz from Stage 2 per-frame flame_param files
-MOTION_NAME="${ID}_selfreplay"
-MOTION_DIR="$ELITE_DIR/data/drive/$MOTION_NAME"
-NERF_FLAME_DIR="$SCRIPT_DIR/data/processed/${ID}_nerf/flame_param"
-
-if [ ! -f "$MOTION_DIR/tracked_flame_params_30.npz" ] || [ ! -f "$MOTION_DIR/transforms.json" ] && [ -d "$NERF_FLAME_DIR" ]; then
-    echo "  Building motion sequence from Stage 2 FLAME params..."
-    mkdir -p "$MOTION_DIR"
-    "$ELITE_PYTHON" - <<PYEOF
-import numpy as np, os, glob
-
-flame_dir = "$NERF_FLAME_DIR"
-out_path = "$MOTION_DIR/tracked_flame_params_30.npz"
-
-files = sorted(glob.glob(os.path.join(flame_dir, '*.npz')))
-print(f"  Found {len(files)} frames")
-
-keys = ['translation', 'rotation', 'neck_pose', 'jaw_pose', 'eyes_pose', 'shape', 'expr', 'static_offset']
-merged = {k: [] for k in keys}
-
-for f in files:
-    d = np.load(f)
-    for k in keys:
-        if k in d:
-            merged[k].append(d[k])
-
-for k in keys:
-    if merged[k]:
-        merged[k] = np.stack(merged[k], axis=0)
-    else:
-        print(f"  WARNING: key '{k}' missing from flame params")
-
-np.savez(out_path, **{k: v for k, v in merged.items() if len(v) > 0})
-print(f"  Saved {out_path} ({len(files)} frames)")
-PYEOF
-    # Copy transforms.json (render.py needs camera poses)
-    NERF_DIR="$SCRIPT_DIR/data/processed/${ID}_nerf"
-    for tf in transforms.json transforms_train.json transforms_val.json; do
-        [ -f "$NERF_DIR/$tf" ] && cp "$NERF_DIR/$tf" "$MOTION_DIR/$tf" && echo "  Copied $tf"
-    done
-else
-    echo "  [skip] Motion sequence already exists"
-fi
-
-# Render
-VIDEO_OUT="$ELITE_DIR/outputs/$ID/vis_motion/${ID}_rgb_${MOTION_NAME}.mp4"
-if [ -f "$VIDEO_OUT" ]; then
-    echo "  [skip] Video already exists: $VIDEO_OUT"
-elif [ -f "$MOTION_DIR/tracked_flame_params_30.npz" ]; then
-    cd "$ELITE_DIR"
-    EXP_DIR="$ELITE_DIR/outputs/$ID"
-    VIS_MOTION="$EXP_DIR/vis_motion"
-    mkdir -p "$VIS_MOTION"
-
-    # Run render.py directly (bypass render_videos.sh conda activation issue)
-    PYTHONPATH="$ELITE_DIR:${PYTHONPATH:-}" \
-    SINGLEVIEW_PRC_ROOT="$PROCESSED_DIR" \
-    SINGLEVIEW_TRACKED_ROOT="$TRACKED_DIR" \
-    EXP_ROOT="$ELITE_DIR/outputs" \
-    "$ELITE_PYTHON" src/render.py \
-        --cfg_file "$EXP_DIR/st2/config.yaml" \
-        --ckpt_file "$EXP_DIR/st2/checkpoints/st2_final.pth" \
-        --person_id "$ID" \
-        --motion_samples_dir "$MOTION_DIR" \
-        --stage 2 \
-        --cam_path motion_id \
-        --save_fps 25 \
-        --motion_id "$MOTION_NAME"
-
-    # Post-process with HuFix
-    REF_IMAGE="$PROCESSED_DIR/${ID}${PROCESSED_SUFFIX}/images/000000_00.png"
-    PYTHONPATH="$ELITE_DIR:${PYTHONPATH:-}" \
-    "$ELITE_PYTHON" hufix/src/post_process.py \
-        --ref_image "$REF_IMAGE" \
-        --input_rgb "$VIS_MOTION/st2_rgb/$MOTION_NAME" \
-        --input_nrm "$VIS_MOTION/st2_nrm/$MOTION_NAME" \
-        --save_dir_rgb "$VIS_MOTION/st2_rgb/${MOTION_NAME}_difix" \
-        --save_dir_nrm "$VIS_MOTION/st2_nrm/${MOTION_NAME}_difix" \
-        --save_fps 25 \
-        --model_path "$HUFIX_CKPT"
-
-    # Rename final videos
-    mv "$VIS_MOTION/final_rgb_${MOTION_NAME}_difix.mp4" "$VIDEO_OUT" 2>/dev/null || true
-    mv "$VIS_MOTION/final_nrm_${MOTION_NAME}_difix.mp4" "$VIS_MOTION/${ID}_nrm_${MOTION_NAME}.mp4" 2>/dev/null || true
-
-    echo ""
-    echo "  Video saved to: $VIDEO_OUT"
-else
-    echo "  WARNING: Could not build motion sequence — skipping render"
-fi
 
 echo ""
 echo "================================================"
@@ -453,7 +361,6 @@ echo "================================================"
 echo ""
 echo "Avatar trained for: $ID"
 echo "Output: $ELITE_DIR/outputs/$ID/"
-echo "PLY:    $ELITE_DIR/outputs/$ID/${ID}_avatar.ply"
-echo "Video:  $ELITE_DIR/outputs/$ID/vis_motion/${ID}_rgb_${MOTION_NAME}.mp4"
+echo "PLY:    $PLY_OUT"
 echo ""
 echo "Next: bash start.sh  (choose stage 4)"
