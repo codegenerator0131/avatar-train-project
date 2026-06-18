@@ -146,12 +146,26 @@ SAVE_PATH_RGB="$VIS_DIR/st2_rgb/${MOTION_NAME}"
 SAVE_PATH_NRM="$VIS_DIR/st2_nrm/${MOTION_NAME}"
 mkdir -p "$SAVE_PATH_RGB" "$SAVE_PATH_NRM" "$VIS_DIR/vid_drive/${MOTION_NAME}"
 
-# Patch render.py and test_dataloader.py to accept our camera_id
-# Use sed so shell variable $CAM_ID expands correctly
-sed -i "s/cam_ids=None,/cam_ids=['${CAM_ID}'],/" "$ELITE_DIR/src/render.py" || true
-sed -i "s/cam_ids=\['222200037'\]/cam_ids=['${CAM_ID}']/" "$ELITE_DIR/src/render.py" || true
-sed -i "s/'222200037'/'${CAM_ID}'/" "$ELITE_DIR/src/dataloader/test_dataloader.py" || true
-echo "  Patched cam_ids to: $CAM_ID"
+# Patch render.py: fix cam_ids and resolution to match our 512x512 data
+"$ELITE_PYTHON" - <<PYEOF2
+import re
+path = "$ELITE_DIR/src/render.py"
+with open(path) as f:
+    code = f.read()
+orig = code
+# Fix cam_ids
+code = re.sub(r"cam_ids=\[?['\"]?[^,\]]*['\"]?\]?,", "cam_ids=['$CAM_ID'],", code)
+# Fix resolution: 802x550 → 512x512
+code = code.replace("res=(802, 550)", "res=(512, 512)")
+code = code.replace('res=(802,550)', 'res=(512,512)')
+if code != orig:
+    with open(path, 'w') as f:
+        f.write(code)
+    print("  Patched render.py: cam_ids=$CAM_ID, res=512x512")
+else:
+    print("  render.py already patched")
+PYEOF2
+echo "  Patched cam_ids to: $CAM_ID, res to 512x512"
 
 "$ELITE_PYTHON" src/render.py \
     --cfg_file "$EXP_PATH/st2/config.yaml" \
