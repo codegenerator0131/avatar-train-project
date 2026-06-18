@@ -113,6 +113,22 @@ for subdir in ['images', 'fg_masks', 'flame_param']:
 
 print(f"  Drive data ready: {len(frames)} frames → {drive_dir}")
 print(f"  Camera ID set to: {CAM_ID}")
+
+# Verify first image exists, fix 5-digit → 6-digit if needed
+import re
+first = frames[0]
+test_path = os.path.join(processed, first['file_path'])
+if not os.path.isfile(test_path):
+    print(f"  Fixing file_path 5-digit → 6-digit...")
+    def fix_path(p):
+        return re.sub(r'(\d{5})(_\d{2}\.png)', lambda m: f"{int(m.group(1)):06d}{m.group(2)}", p)
+    for frame in frames:
+        frame['file_path']    = fix_path(frame['file_path'])
+        frame['fg_mask_path'] = fix_path(frame['fg_mask_path'])
+    drive_tf['frames'] = frames
+    with open(out_path, 'w') as f:
+        json.dump(drive_tf, f, indent=2)
+    print(f"  Fixed: {first['file_path']} → {frames[0]['file_path']}")
 PYEOF
 
 # Pass the cam_id we set above to render.py via cam_ids arg
