@@ -182,14 +182,16 @@ else
     fi
     echo "  Reference image: $REF_IMAGE"
 
-    PYTHONPATH="$ELITE_DIR:${PYTHONPATH:-}" "$ELITE_PYTHON" hufix/src/post_process.py \
+    # Use chunked post_process script to avoid OOM (original loads all frames at once)
+    cp "$SCRIPT_DIR/hufix_chunked.py" "$ELITE_DIR/hufix_chunked.py"
+    PYTHONPATH="$ELITE_DIR:${PYTHONPATH:-}" "$ELITE_PYTHON" "$ELITE_DIR/hufix_chunked.py" \
         --ref_image "$REF_IMAGE" \
         --input_rgb "$SAVE_PATH_RGB" \
         --input_nrm "$SAVE_PATH_NRM" \
         --save_dir_rgb "${SAVE_PATH_RGB}_difix" \
         --save_dir_nrm "${SAVE_PATH_NRM}_difix" \
         --save_fps 25 \
-        --batch_size 1 \
+        --chunk_size 8 \
         --model_path "$HUFIX_CKPT"
 
     [ -f "$VIS_DIR/final_rgb_${MOTION_NAME}_difix.mp4" ] && mv "$VIS_DIR/final_rgb_${MOTION_NAME}_difix.mp4" "$FINAL_RGB"
