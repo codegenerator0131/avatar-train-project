@@ -36,11 +36,16 @@ PROCESSED_DIR="$ELITE_DIR/data/source/processed"
 TRACKED_DIR="$ELITE_DIR/data/source/tracked"
 PROCESSED_SUFFIX="_whiteBg_staticOffset_maskBelowLine"
 PROCESSED_TARGET="$PROCESSED_DIR/${ID}${PROCESSED_SUFFIX}"
-TRACKED_TARGET="$TRACKED_DIR/${ID}_whiteBg_staticOffset"
 EXP_PATH="$ELITE_DIR/outputs/$ID"
 ST2_CKPT="$EXP_PATH/st2/checkpoints/st2_final.pth"
 DRIVE_DIR="$ELITE_DIR/data/drive/${ID}"
 VIS_DIR="$EXP_PATH/vis_motion"
+MOTION_NAME="$ID"
+SAVE_PATH_RGB="$VIS_DIR/st2_rgb/${MOTION_NAME}"
+SAVE_PATH_NRM="$VIS_DIR/st2_nrm/${MOTION_NAME}"
+FINAL_RGB="$VIS_DIR/${ID}_rgb_${MOTION_NAME}.mp4"
+FINAL_NRM="$VIS_DIR/${ID}_nrm_${MOTION_NAME}.mp4"
+CAM_ID="our_cam"
 
 export CONDA_ENV="ELITE"
 export CONDA_INIT_SCRIPT="$HOME/miniconda3/etc/profile.d/conda.sh"
@@ -63,20 +68,20 @@ if [ ! -f "$ST2_CKPT" ]; then
     exit 1
 fi
 
-echo "Step 1/3 — Preparing motion drive data from Stage 2 VHAP output..."
+# ── Step 1/3 — Prepare drive data ─────────────────────────────────────────────
+echo "Step 1/3 — Preparing motion drive data..."
 echo ""
 
-# Always rebuild drive dir cleanly
-rm -rf "$DRIVE_DIR"
-mkdir -p "$DRIVE_DIR"
-
-"$ELITE_PYTHON" - <<PYEOF
-import os, json, numpy as np
+if [ -f "$DRIVE_DIR/transforms.json" ]; then
+    echo "  [skip] Drive data already exists: $DRIVE_DIR"
+else
+    mkdir -p "$DRIVE_DIR"
+    "$ELITE_PYTHON" - <<PYEOF
+import os, json, re, numpy as np
 
 processed = "$PROCESSED_TARGET"
 drive_dir = "$DRIVE_DIR"
 
-# Load transforms.json — already has flame_param_path per frame
 tf_path = os.path.join(processed, 'transforms.json')
 with open(tf_path) as f:
     transforms_data = json.load(f)
@@ -84,80 +89,59 @@ with open(tf_path) as f:
 frames = transforms_data['frames']
 print(f"  transforms.json has {len(frames)} frames")
 
-# Patch camera_id to the string TestMotionRenderDataset expects
-# Our data uses integer 0; we remap to our own cam id string
-CAM_ID = 'our_cam'
+# Patch camera_id
 for frame in frames:
-    frame['camera_id'] = CAM_ID
-    # ensure flame_param_path is absolute or resolvable from drive_dir
-    # it should already point to flame_param/ relative path
+    frame['camera_id'] = '$CAM_ID'
 
-# Write patched transforms.json into drive_dir
+# Fix 5-digit → 6-digit filenames if needed
+first_img = os.path.join(processed, frames[0]['file_path'])
+if not os.path.isfile(first_img):
+    def fix_path(p):
+        return re.sub(r'(\d{5})(_\d{2}\.png)', lambda m: f"{int(m.group(1)):06d}{m.group(2)}", p)
+    for frame in frames:
+        frame['file_path']    = fix_path(frame['file_path'])
+        frame['fg_mask_path'] = fix_path(frame['fg_mask_path'])
+    print(f"  Fixed filenames: 5-digit → 6-digit")
+
 drive_tf = dict(transforms_data)
 drive_tf['frames'] = frames
-out_path = os.path.join(drive_dir, 'transforms.json')
-with open(out_path, 'w') as f:
+with open(os.path.join(drive_dir, 'transforms.json'), 'w') as f:
     json.dump(drive_tf, f, indent=2)
 
-# Symlink images, fg_masks, flame_param into drive_dir
 for subdir in ['images', 'fg_masks', 'flame_param']:
     src = os.path.join(processed, subdir)
     dst = os.path.join(drive_dir, subdir)
     if os.path.isdir(src) and not os.path.exists(dst):
         os.symlink(src, dst)
         print(f"  Symlinked {subdir}")
-    elif os.path.exists(dst):
-        print(f"  {subdir} already linked")
-    else:
-        print(f"  WARNING: {src} not found")
 
 print(f"  Drive data ready: {len(frames)} frames → {drive_dir}")
-print(f"  Camera ID set to: {CAM_ID}")
-
-# Verify first image exists, fix 5-digit → 6-digit if needed
-import re
-first = frames[0]
-test_path = os.path.join(processed, first['file_path'])
-if not os.path.isfile(test_path):
-    print(f"  Fixing file_path 5-digit → 6-digit...")
-    def fix_path(p):
-        return re.sub(r'(\d{5})(_\d{2}\.png)', lambda m: f"{int(m.group(1)):06d}{m.group(2)}", p)
-    for frame in frames:
-        frame['file_path']    = fix_path(frame['file_path'])
-        frame['fg_mask_path'] = fix_path(frame['fg_mask_path'])
-    drive_tf['frames'] = frames
-    with open(out_path, 'w') as f:
-        json.dump(drive_tf, f, indent=2)
-    print(f"  Fixed: {first['file_path']} → {frames[0]['file_path']}")
 PYEOF
+fi
 
-# Pass the cam_id we set above to render.py via cam_ids arg
-CAM_ID="our_cam"
-
+# ── Step 2/3 — Render frames ───────────────────────────────────────────────────
 echo ""
-echo "Step 2/3 — Rendering avatar with ELITE renderer..."
+echo "Step 2/3 — Rendering avatar frames..."
 echo ""
 
-cd "$ELITE_DIR"
-mkdir -p "$VIS_DIR"
+# Check if rendered frames already exist (count PNG files in rgb output dir)
+RENDER_COUNT=$(find "$SAVE_PATH_RGB" -name "*.png" 2>/dev/null | wc -l || echo "0")
+if [ "$RENDER_COUNT" -gt 100 ]; then
+    echo "  [skip] Render frames already exist ($RENDER_COUNT frames in $SAVE_PATH_RGB)"
+else
+    cd "$ELITE_DIR"
+    mkdir -p "$SAVE_PATH_RGB" "$SAVE_PATH_NRM" "$VIS_DIR/vid_drive/${MOTION_NAME}"
 
-MOTION_NAME="$ID"
-SAVE_PATH_RGB="$VIS_DIR/st2_rgb/${MOTION_NAME}"
-SAVE_PATH_NRM="$VIS_DIR/st2_nrm/${MOTION_NAME}"
-mkdir -p "$SAVE_PATH_RGB" "$SAVE_PATH_NRM" "$VIS_DIR/vid_drive/${MOTION_NAME}"
-
-# Patch render.py: fix cam_ids and resolution to match our 512x512 data
-"$ELITE_PYTHON" - <<PYEOF2
+    # Patch render.py: cam_ids and resolution
+    "$ELITE_PYTHON" - <<PYEOF2
 import re
 path = "$ELITE_DIR/src/render.py"
 with open(path) as f:
     code = f.read()
 orig = code
-# Fix cam_ids
 code = re.sub(r"cam_ids=\[?['\"]?[^,\]]*['\"]?\]?,", "cam_ids=['$CAM_ID'],", code)
-# Fix resolution: 802x550 → 512x512
 code = code.replace("res=(802, 550)", "res=(512, 512)")
-code = code.replace('res=(802,550)', 'res=(512,512)')
+code = code.replace("res=(802,550)", "res=(512,512)")
 if code != orig:
     with open(path, 'w') as f:
         f.write(code)
@@ -165,45 +149,53 @@ if code != orig:
 else:
     print("  render.py already patched")
 PYEOF2
-echo "  Patched cam_ids to: $CAM_ID, res to 512x512"
 
-"$ELITE_PYTHON" src/render.py \
-    --cfg_file "$EXP_PATH/st2/config.yaml" \
-    --ckpt_file "$ST2_CKPT" \
-    --person_id "$ID" \
-    --motion_samples_dir "$DRIVE_DIR" \
-    --stage '2' \
-    --cam_path 'motion_id' \
-    --save_fps 25 \
-    --motion_id "$MOTION_NAME"
+    "$ELITE_PYTHON" src/render.py \
+        --cfg_file "$EXP_PATH/st2/config.yaml" \
+        --ckpt_file "$ST2_CKPT" \
+        --person_id "$ID" \
+        --motion_samples_dir "$DRIVE_DIR" \
+        --stage '2' \
+        --cam_path 'motion_id' \
+        --save_fps 25 \
+        --motion_id "$MOTION_NAME"
+fi
 
+# ── Step 3/3 — HuFix post-processing ──────────────────────────────────────────
 echo ""
 echo "Step 3/3 — Post-processing with HuFix enhancement..."
 echo ""
 
-REF_IMAGE="$PROCESSED_TARGET/images/00000_00.png"
-# fallback ref image if naming differs
-if [ ! -f "$REF_IMAGE" ]; then
-    REF_IMAGE=$(find "$PROCESSED_TARGET/images" -name "*.png" | sort | head -1)
+if [ -f "$FINAL_RGB" ]; then
+    echo "  [skip] Final video already exists: $FINAL_RGB"
+else
+    cd "$ELITE_DIR"
+
+    REF_IMAGE="$PROCESSED_TARGET/images/000000_00.png"
+    if [ ! -f "$REF_IMAGE" ]; then
+        REF_IMAGE=$(find "$PROCESSED_TARGET/images" -name "*.png" 2>/dev/null | sort | head -1 || true)
+    fi
+    if [ -z "$REF_IMAGE" ] || [ ! -f "$REF_IMAGE" ]; then
+        echo "ERROR: Could not find reference image in $PROCESSED_TARGET/images"
+        exit 1
+    fi
+    echo "  Reference image: $REF_IMAGE"
+
+    PYTHONPATH="$ELITE_DIR:${PYTHONPATH:-}" "$ELITE_PYTHON" hufix/src/post_process.py \
+        --ref_image "$REF_IMAGE" \
+        --input_rgb "$SAVE_PATH_RGB" \
+        --input_nrm "$SAVE_PATH_NRM" \
+        --save_dir_rgb "${SAVE_PATH_RGB}_difix" \
+        --save_dir_nrm "${SAVE_PATH_NRM}_difix" \
+        --save_fps 25 \
+        --model_path "$HUFIX_CKPT"
+
+    [ -f "$VIS_DIR/final_rgb_${MOTION_NAME}_difix.mp4" ] && mv "$VIS_DIR/final_rgb_${MOTION_NAME}_difix.mp4" "$FINAL_RGB"
+    [ -f "$VIS_DIR/final_nrm_${MOTION_NAME}_difix.mp4" ] && mv "$VIS_DIR/final_nrm_${MOTION_NAME}_difix.mp4" "$FINAL_NRM"
+
+    # Cleanup intermediate frames
+    rm -rf "$SAVE_PATH_RGB" "$SAVE_PATH_NRM" "$VIS_DIR/vid_drive/${MOTION_NAME}"
 fi
-
-"$ELITE_PYTHON" hufix/src/post_process.py \
-    --ref_image "$REF_IMAGE" \
-    --input_rgb "$SAVE_PATH_RGB" \
-    --input_nrm "$SAVE_PATH_NRM" \
-    --save_dir_rgb "${SAVE_PATH_RGB}_difix" \
-    --save_dir_nrm "${SAVE_PATH_NRM}_difix" \
-    --save_fps 25 \
-    --model_path "$HUFIX_CKPT"
-
-# Rename final outputs
-FINAL_RGB="$VIS_DIR/${ID}_rgb_${MOTION_NAME}.mp4"
-FINAL_NRM="$VIS_DIR/${ID}_nrm_${MOTION_NAME}.mp4"
-[ -f "$VIS_DIR/final_rgb_${MOTION_NAME}_difix.mp4" ] && mv "$VIS_DIR/final_rgb_${MOTION_NAME}_difix.mp4" "$FINAL_RGB"
-[ -f "$VIS_DIR/final_nrm_${MOTION_NAME}_difix.mp4" ] && mv "$VIS_DIR/final_nrm_${MOTION_NAME}_difix.mp4" "$FINAL_NRM"
-
-# Cleanup intermediate frames
-rm -rf "$SAVE_PATH_RGB" "$SAVE_PATH_NRM" "$VIS_DIR/vid_drive/${MOTION_NAME}"
 
 echo ""
 echo "================================================"
@@ -211,7 +203,7 @@ echo "  Stage 5 complete!"
 echo "================================================"
 echo ""
 echo "Output videos:"
-echo "  RGB: $FINAL_RGB"
+echo "  RGB:    $FINAL_RGB"
 echo "  Normal: $FINAL_NRM"
 echo ""
-echo "Next: bash start.sh  (choose stage 6 or deliver to client)"
+echo "Next: bash start.sh  (choose next stage)"
