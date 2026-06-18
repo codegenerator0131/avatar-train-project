@@ -189,6 +189,7 @@ else
         --save_dir_rgb "${SAVE_PATH_RGB}_difix" \
         --save_dir_nrm "${SAVE_PATH_NRM}_difix" \
         --save_fps 25 \
+        --batch_size 1 \
         --model_path "$HUFIX_CKPT"
 
     [ -f "$VIS_DIR/final_rgb_${MOTION_NAME}_difix.mp4" ] && mv "$VIS_DIR/final_rgb_${MOTION_NAME}_difix.mp4" "$FINAL_RGB"
