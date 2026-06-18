@@ -66,102 +66,63 @@ fi
 echo "Step 1/3 — Preparing motion drive data from Stage 2 VHAP output..."
 echo ""
 
-# Build drive directory from VHAP tracked output
-mkdir -p "$DRIVE_DIR/flame_param"
+# Remove old broken drive dir if it has 0 frames
+if [ -f "$DRIVE_DIR/transforms.json" ]; then
+    FRAME_COUNT=$("$ELITE_PYTHON" -c "import json; d=json.load(open('$DRIVE_DIR/transforms.json')); print(len(d['frames']))" 2>/dev/null || echo "0")
+    if [ "$FRAME_COUNT" = "0" ]; then
+        echo "  Removing empty drive dir..."
+        rm -rf "$DRIVE_DIR"
+    fi
+fi
+mkdir -p "$DRIVE_DIR"
 
 "$ELITE_PYTHON" - <<PYEOF
-import os, json, numpy as np, glob, shutil
-from PIL import Image
-import torchvision.transforms as T
-import torch
+import os, json, numpy as np
 
 processed = "$PROCESSED_TARGET"
-tracked   = "$TRACKED_TARGET"
 drive_dir = "$DRIVE_DIR"
 
-# Find tracked_flame_params npz
-last_run   = sorted(os.listdir(tracked))[-1]
-npz_path   = os.path.join(tracked, last_run, 'tracked_flame_params_30.npz')
-params     = np.load(npz_path, allow_pickle=True)
-timestep_ids = params['timestep_id']  # e.g. ['f000000', ...]
-
-print(f"  Found {len(timestep_ids)} frames in {npz_path}")
-
-# Load transforms.json from processed dir
+# Load transforms.json — already has flame_param_path per frame
 tf_path = os.path.join(processed, 'transforms.json')
 with open(tf_path) as f:
     transforms_data = json.load(f)
 
-frames_by_ts = {}
-for frame in transforms_data['frames']:
-    ts = frame.get('timestep_id', '')
-    if ts not in frames_by_ts:
-        frames_by_ts[ts] = frame
+frames = transforms_data['frames']
+print(f"  transforms.json has {len(frames)} frames")
 
-print(f"  transforms.json has {len(frames_by_ts)} unique timesteps")
+# Patch camera_id to the string TestMotionRenderDataset expects
+# Our data uses integer 0; we remap to our own cam id string
+CAM_ID = 'our_cam'
+for frame in frames:
+    frame['camera_id'] = CAM_ID
+    # ensure flame_param_path is absolute or resolvable from drive_dir
+    # it should already point to flame_param/ relative path
 
-# Build per-frame npz files and new transforms.json for drive dir
-to_tensor = T.ToTensor()
-new_frames = []
-written = 0
-
-for i, ts in enumerate(timestep_ids):
-    ts_str = str(ts)
-    if ts_str not in frames_by_ts:
-        continue
-
-    frame_entry = frames_by_ts[ts_str]
-    img_fname   = frame_entry.get('file_path', '')   # e.g. images/000000_00.png
-    mask_fname  = frame_entry.get('fg_mask_path', frame_entry.get('fg_masks', ''))
-
-    img_src  = os.path.join(processed, img_fname)
-    if not mask_fname:
-        # try to guess
-        mask_src = img_src.replace('/images/', '/fg_masks/')
-    else:
-        mask_src = os.path.join(processed, mask_fname)
-
-    if not os.path.isfile(img_src):
-        continue
-
-    # Write per-frame flame_param npz
-    npz_out = os.path.join(drive_dir, 'flame_param', f'{written:05d}.npz')
-    np.savez(npz_out,
-        shape       = params['shape'],
-        rotation    = params['rotation'][i:i+1],
-        translation = params['translation'][i:i+1],
-        neck_pose   = params['neck_pose'][i:i+1],
-        jaw_pose    = params['jaw_pose'][i:i+1],
-        eyes_pose   = params['eyes_pose'][i:i+1],
-        expr        = params['expr'][i:i+1],
-        static_offset = params['static_offset'][i:i+1] if 'static_offset' in params else np.zeros((1, params['shape'].shape[-1] if 'shape' in params else 5023, 3), dtype=np.float32),
-    )
-
-    # Build frame entry for drive transforms.json
-    new_entry = {k: v for k, v in frame_entry.items()}
-    new_entry['timestep_index']  = written
-    new_entry['file_path']       = img_fname
-    new_entry['fg_mask_path']    = mask_fname if mask_fname else img_fname.replace('images/', 'fg_masks/'),
-    new_entry['flame_param_path'] = f'flame_param/{written:05d}.npz'
-    new_entry['camera_id']       = '222200037'
-    new_frames.append(new_entry)
-    written += 1
-
-# Write drive transforms.json
-drive_tf = {k: v for k, v in transforms_data.items() if k != 'frames'}
-drive_tf['frames'] = new_frames
-with open(os.path.join(drive_dir, 'transforms.json'), 'w') as f:
+# Write patched transforms.json into drive_dir
+drive_tf = dict(transforms_data)
+drive_tf['frames'] = frames
+out_path = os.path.join(drive_dir, 'transforms.json')
+with open(out_path, 'w') as f:
     json.dump(drive_tf, f, indent=2)
 
-# Symlink images and fg_masks into drive_dir
-for subdir in ['images', 'fg_masks']:
+# Symlink images, fg_masks, flame_param into drive_dir
+for subdir in ['images', 'fg_masks', 'flame_param']:
     src = os.path.join(processed, subdir)
     dst = os.path.join(drive_dir, subdir)
     if os.path.isdir(src) and not os.path.exists(dst):
         os.symlink(src, dst)
+        print(f"  Symlinked {subdir}")
+    elif os.path.exists(dst):
+        print(f"  {subdir} already linked")
+    else:
+        print(f"  WARNING: {src} not found")
 
-print(f"  Drive data prepared: {written} frames → {drive_dir}")
+print(f"  Drive data ready: {len(frames)} frames → {drive_dir}")
+print(f"  Camera ID set to: {CAM_ID}")
 PYEOF
+
+# Pass the cam_id we set above to render.py via cam_ids arg
+CAM_ID="our_cam"
 
 echo ""
 echo "Step 2/3 — Rendering avatar with ELITE renderer..."
@@ -174,6 +135,34 @@ MOTION_NAME="$ID"
 SAVE_PATH_RGB="$VIS_DIR/st2_rgb/${MOTION_NAME}"
 SAVE_PATH_NRM="$VIS_DIR/st2_nrm/${MOTION_NAME}"
 mkdir -p "$SAVE_PATH_RGB" "$SAVE_PATH_NRM" "$VIS_DIR/vid_drive/${MOTION_NAME}"
+
+# Patch render.py to use our cam_id (default is '222200037' which doesn't match our data)
+"$ELITE_PYTHON" - <<PYEOF2
+path = "$ELITE_DIR/src/render.py"
+with open(path) as f:
+    code = f.read()
+patched = code.replace(
+    "cam_ids=None,",
+    "cam_ids=['$CAM_ID'],",
+)
+if patched != code:
+    with open(path, 'w') as f:
+        f.write(patched)
+    print("  Patched render.py: cam_ids=['$CAM_ID']")
+else:
+    print("  render.py already patched or cam_ids not found — checking...")
+    # Also try patching the default in TestMotionRenderDataset call
+    import re
+    patched2 = re.sub(
+        r"cam_ids=\[.*?\]",
+        "cam_ids=['$CAM_ID']",
+        code,
+    )
+    if patched2 != code:
+        with open(path, 'w') as f:
+            f.write(patched2)
+        print("  Patched render.py via regex")
+PYEOF2
 
 "$ELITE_PYTHON" src/render.py \
     --cfg_file "$EXP_PATH/st2/config.yaml" \
