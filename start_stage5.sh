@@ -124,10 +124,11 @@ echo ""
 echo "Step 2/3 — Rendering avatar frames..."
 echo ""
 
-# Check if rendered frames already exist (count PNG files in rgb output dir)
+# Skip if frames exist OR driver video already created by ffmpeg
 RENDER_COUNT=$(find "$SAVE_PATH_RGB" -name "*.png" 2>/dev/null | wc -l || echo "0")
-if [ "$RENDER_COUNT" -gt 100 ]; then
-    echo "  [skip] Render frames already exist ($RENDER_COUNT frames in $SAVE_PATH_RGB)"
+DRIVER_VIDEO="$VIS_DIR/vid_drive/driver_${MOTION_NAME}.mp4"
+if [ "$RENDER_COUNT" -gt 100 ] || [ -f "$DRIVER_VIDEO" ]; then
+    echo "  [skip] Render already done ($RENDER_COUNT frames, driver: $DRIVER_VIDEO)"
 else
     cd "$ELITE_DIR"
     mkdir -p "$SAVE_PATH_RGB" "$SAVE_PATH_NRM" "$VIS_DIR/vid_drive/${MOTION_NAME}"
