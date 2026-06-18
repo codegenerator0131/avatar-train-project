@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Avatar Pipeline — Progress Tracker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f7; color: #1d1d1f; }
+
+  header { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 20px 40px; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header .subtitle { font-size: 13px; color: #888; margin-top: 2px; }
+  .badge { background: #e8f5e9; color: #2e7d32; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; }
+
+  .pipeline { display: flex; align-items: center; gap: 0; padding: 28px 40px; background: #fff; border-bottom: 1px solid #e0e0e0; overflow-x: auto; }
+  .pip-stage { display: flex; align-items: center; gap: 0; }
+  .pip-dot { display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; padding: 0 18px; }
+  .pip-dot .circle { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; border: 2px solid #ccc; background: #fff; color: #999; transition: all 0.2s; }
+  .pip-dot.done .circle { background: #2e7d32; border-color: #2e7d32; color: #fff; }
+  .pip-dot.active .circle { background: #1976d2; border-color: #1976d2; color: #fff; box-shadow: 0 0 0 4px rgba(25,118,210,0.15); }
+  .pip-dot .label { font-size: 11px; color: #888; font-weight: 500; white-space: nowrap; }
+  .pip-dot.done .label, .pip-dot.active .label { color: #1d1d1f; }
+  .pip-line { width: 48px; height: 2px; background: #e0e0e0; flex-shrink: 0; }
+  .pip-line.done { background: #2e7d32; }
+
+  .content { max-width: 900px; margin: 32px auto; padding: 0 24px; }
+
+  .stage-card { background: #fff; border-radius: 16px; border: 1px solid #e0e0e0; margin-bottom: 20px; overflow: hidden; }
+  .stage-card.done { border-left: 4px solid #2e7d32; }
+  .stage-card.active { border-left: 4px solid #1976d2; }
+  .stage-card.pending { border-left: 4px solid #e0e0e0; opacity: 0.7; }
+
+  .stage-header { padding: 20px 24px; display: flex; align-items: center; gap: 16px; cursor: pointer; user-select: none; }
+  .stage-num { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; flex-shrink: 0; }
+  .done .stage-num { background: #e8f5e9; color: #2e7d32; }
+  .active .stage-num { background: #e3f2fd; color: #1976d2; }
+  .pending .stage-num { background: #f5f5f5; color: #999; }
+  .stage-title { flex: 1; }
+  .stage-title h2 { font-size: 16px; font-weight: 600; }
+  .stage-title p { font-size: 13px; color: #888; margin-top: 2px; }
+  .stage-status { font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; }
+  .done .stage-status { background: #e8f5e9; color: #2e7d32; }
+  .active .stage-status { background: #e3f2fd; color: #1976d2; }
+  .pending .stage-status { background: #f5f5f5; color: #999; }
+  .chevron { font-size: 18px; color: #ccc; transition: transform 0.2s; }
+  .stage-card.open .chevron { transform: rotate(180deg); }
+
+  .stage-body { display: none; padding: 0 24px 24px; border-top: 1px solid #f0f0f0; }
+  .stage-card.open .stage-body { display: block; }
+
+  .io-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }
+  .io-box { background: #f9f9f9; border-radius: 10px; padding: 16px; }
+  .io-box h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin-bottom: 10px; }
+  .io-box ul { list-style: none; }
+  .io-box ul li { font-size: 13px; color: #444; padding: 3px 0; display: flex; align-items: center; gap: 8px; }
+  .io-box ul li::before { content: '→'; color: #bbb; font-size: 11px; }
+
+  .steps-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin: 20px 0 12px; }
+  .step { display: flex; align-items: flex-start; gap: 14px; padding: 12px 0; border-bottom: 1px solid #f5f5f5; }
+  .step:last-child { border-bottom: none; }
+  .step-info { flex: 1; }
+  .step-info strong { font-size: 14px; font-weight: 600; display: block; }
+  .step-info span.desc { font-size: 12px; color: #888; margin-top: 2px; display: block; }
+  .step-status-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-top: 8px; padding: 4px 12px 4px 8px;
+    border-radius: 20px; border: none; cursor: pointer;
+    font-size: 12px; font-weight: 600; transition: all 0.15s;
+    user-select: none;
+  }
+  .step-status-btn .dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .step-status-btn[data-status="pending"] { background: #f5f5f5; color: #999; }
+  .step-status-btn[data-status="pending"] .dot { background: #ccc; }
+  .step-status-btn[data-status="doing"] { background: #e3f2fd; color: #1976d2; animation: pulse-btn 1.5s infinite; }
+  .step-status-btn[data-status="doing"] .dot { background: #1976d2; }
+  .step-status-btn[data-status="done"] { background: #e8f5e9; color: #2e7d32; }
+  .step-status-btn[data-status="done"] .dot { background: #2e7d32; }
+  @keyframes pulse-btn { 0%,100% { box-shadow: 0 0 0 0 rgba(25,118,210,0.3); } 50% { box-shadow: 0 0 0 5px rgba(25,118,210,0); } }
+  .step-status-btn:hover { filter: brightness(0.95); transform: scale(1.03); }
+
+  .output-files { margin-top: 16px; background: #1d1d1f; border-radius: 10px; padding: 14px 18px; }
+  .output-files h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #666; margin-bottom: 10px; }
+  .output-files .file { font-size: 12px; font-family: 'SF Mono', 'Fira Code', monospace; color: #a8ff78; padding: 3px 0; display: flex; gap: 12px; }
+  .output-files .file .fname { color: #fff; }
+  .output-files .file .fdesc { color: #888; }
+
+  .note { background: #fff8e1; border-left: 3px solid #f9a825; border-radius: 6px; padding: 12px 16px; margin-top: 16px; font-size: 13px; color: #555; }
+
+  footer { text-align: center; padding: 40px; color: #bbb; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Reblium Avatar Pipeline</h1>
+    <div class="subtitle">3D Talking-Head Avatar — Progress Tracker</div>
+  </div>
+  <div class="badge">3 / 5 Stages Complete</div>
+</header>
+
+<div class="pipeline">
+  <div class="pip-stage">
+    <div class="pip-dot done" onclick="openStage(1)">
+      <div class="circle">✓</div>
+      <div class="label">Stage 1<br>Capture</div>
+    </div>
+  </div>
+  <div class="pip-line done"></div>
+  <div class="pip-stage">
+    <div class="pip-dot done" onclick="openStage(2)">
+      <div class="circle">✓</div>
+      <div class="label">Stage 2<br>Tracking</div>
+    </div>
+  </div>
+  <div class="pip-line done"></div>
+  <div class="pip-stage">
+    <div class="pip-dot done" onclick="openStage(3)">
+      <div class="circle">✓</div>
+      <div class="label">Stage 3<br>Avatar</div>
+    </div>
+  </div>
+  <div class="pip-line"></div>
+  <div class="pip-stage">
+    <div class="pip-dot" onclick="openStage(4)">
+      <div class="circle">4</div>
+      <div class="label">Stage 4<br>Audio</div>
+    </div>
+  </div>
+  <div class="pip-line"></div>
+  <div class="pip-stage">
+    <div class="pip-dot" onclick="openStage(5)">
+      <div class="circle">5</div>
+      <div class="label">Stage 5<br>Render</div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- STAGE 1 -->
+  <div class="stage-card done open" id="stage-1">
+    <div class="stage-header" onclick="toggleStage(1)">
+      <div class="stage-num">1</div>
+      <div class="stage-title">
+        <h2>Capture</h2>
+        <p>Extract frames and audio from the source video</p>
+      </div>
+      <div class="stage-status">Complete</div>
+      <div class="chevron">▾</div>
+    </div>
+    <div class="stage-body">
+      <div class="io-row">
+        <div class="io-box">
+          <h4>Input</h4>
+          <ul>
+            <li>IMG_9625.MOV — source video (720×1280, 30fps, 122s)</li>
+          </ul>
+        </div>
+        <div class="io-box">
+          <h4>Output</h4>
+          <ul>
+            <li>3,685 frames at 512×512px</li>
+            <li>audio.wav — extracted audio</li>
+            <li>meta.json — video metadata</li>
+          </ul>
+        </div>
+      </div>
+      <div class="steps-title">Steps</div>
+      <div class="step">
+        <div></div>
+        <div class="step-info">
+          <strong>Video frame extraction</strong>
+          <span>Decoded all frames from MOV file, resized to 512×512</span>
+          <button class="step-status-btn" data-status="done" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Done</span></button>
+        </div>
+      </div>
+      <div class="step">
+        <div></div>
+        <div class="step-info">
+          <strong>Audio extraction</strong>
+          <span>Separated audio track as WAV for Stage 4</span>
+          <button class="step-status-btn" data-status="done" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Done</span></button>
+        </div>
+      </div>
+      <div class="output-files">
+        <h4>Output location</h4>
+        <div class="file"><span class="fname">data/processed/take1/</span></div>
+        <div class="file"><span class="fname">├── images/</span><span class="fdesc">3,685 × 512×512 PNG frames</span></div>
+        <div class="file"><span class="fname">├── audio.wav</span><span class="fdesc">122s audio track</span></div>
+        <div class="file"><span class="fname">└── meta.json</span><span class="fdesc">fps, resolution, frame count</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 2 -->
+  <div class="stage-card done" id="stage-2">
+    <div class="stage-header" onclick="toggleStage(2)">
+      <div class="stage-num">2</div>
+      <div class="stage-title">
+        <h2>FLAME Tracking</h2>
+        <p>Fit a 3D head model to every frame using photometric tracking</p>
+      </div>
+      <div class="stage-status">Complete</div>
+      <div class="chevron">▾</div>
+    </div>
+    <div class="stage-body">
+      <div class="io-row">
+        <div class="io-box">
+          <h4>Input</h4>
+          <ul>
+            <li>Source video (IMG_9625.MOV)</li>
+          </ul>
+        </div>
+        <div class="io-box">
+          <h4>Output</h4>
+          <ul>
+            <li>Per-frame FLAME 3D head params</li>
+            <li>Camera poses (position + intrinsics)</li>
+            <li>Matted frames (white background)</li>
+            <li>Canonical neutral head mesh (.obj)</li>
+          </ul>
+        </div>
+      </div>
+      <div class="steps-title">Steps</div>
+      <div class="step">
+        <div></div>
+        <div class="step-info">
+          <strong>Background matting</strong>
+          <span>Removed background from every frame using RobustVideoMatting</span>
+          <button class="step-status-btn" data-status="done" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Done</span></button>
+        </div>
+      </div>
+      <div class="step">
+        <div></div>
+        <div class="step-info">
+          <strong>Photometric FLAME tracking (VHAP)</strong>
+          <span>Fitted FLAME 3D head model to each frame — shape, expression, jaw, eyes, camera</span>
+          <button class="step-status-btn" data-status="done" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Done</span></button>
+        </div>
+      </div>
+      <div class="step">
+        <div></div>
+        <div class="step-info">
+          <strong>NeRF/3DGS dataset export</strong>
+          <span>Converted tracking output to standard format for Stage 3</span>
+          <button class="step-status-btn" data-status="done" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Done</span></button>
+        </div>
+      </div>
+      <div class="output-files">
+        <h4>Output location</h4>
+        <div class="file"><span class="fname">data/processed/IMG_9625_nerf/</span></div>
+        <div class="file"><span class="fname">├── transforms.json</span><span class="fdesc">camera pose per frame</span></div>
+        <div class="file"><span class="fname">├── images/</span><span class="fdesc">white-background frames</span></div>
+        <div class="file"><span class="fname">├── flame_param/</span><span class="fdesc">per-frame 3D head parameters</span></div>
+        <div class="file"><span class="fname">└── canonical.obj</span><span class="fdesc">neutral 3D head mesh</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 3 -->
+  <div class="stage-card done" id="stage-3">
+    <div class="stage-header" onclick="toggleStage(3)">
+      <div class="stage-num">3</div>
+      <div class="stage-title">
+        <h2>3D Gaussian Avatar</h2>
+        <p>Train a photorealistic animatable 3D head avatar using ELITE (CVPR 2026)</p>
+      </div>
+      <div class="stage-status">Complete</div>
+      <div class="chevron">▾</div>
+    </div>
+    <div class="stage-body">
+      <div class="io-row">
+        <div class="io-box">
+          <h4>Input</h4>
+          <ul>
+            <li>Matted video frames (512×512)</li>
+            <li>FLAME tracking params from Stage 2</li>
+            <li>Pre-trained ELITE prior model (4.9GB)</li>
+          </ul>
+        </div>
+        <div class="io-box">
+          <h4>Output</h4>
+          <ul>
+            <li>IMG_9625_avatar.ply — 3D Gaussian avatar</li>
+            <li>262,144 Gaussians representing the head</li>
+            <li>Viewable in Blender / SuperSplat</li>
+          </ul>
+        </div>
+      </div>
+      <div class="steps-title">Steps</div>
+      <div class="step">
+        <div></div>
+        <div class="step-info">
+          <strong>Prior model personalization (Stage 1)</strong>
+          <span>Fine-tuned the ELITE AI prior model to this person's face shape and appearance — 21 epochs</span>
+          <button class="step-status-btn" data-status="done" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Done</span></button>
+        </div>
+      </div>
+      <div class="step">
+        <div></div>
+        <div class="step-info">
+          <strong>Synthetic expression generation</strong>
+          <span>Generated 787 synthetic renders of the face in random expressions (smile, frown, open mouth etc.)</span>
+          <button class="step-status-btn" data-status="done" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Done</span></button>
+        </div>
+      </div>
+      <div class="step">
+        <div></div>
+        <div class="step-info">
+          <strong>Joint fine-tuning (Stage 2)</strong>
+          <span>Trained avatar on both real frames + synthetic expressions — 51 epochs, val PSNR 26.4</span>
+          <button class="step-status-btn" data-status="done" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Done</span></button>
+        </div>
+      </div>
+      <div class="step">
+        <div></div>
+        <div class="step-info">
+          <strong>PLY export</strong>
+          <span>Exported 262,144 Gaussians as standard 3DGS PLY file</span>
+          <button class="step-status-btn" data-status="done" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Done</span></button>
+        </div>
+      </div>
+      <div class="output-files">
+        <h4>Output location</h4>
+        <div class="file"><span class="fname">elite/outputs/IMG_9625/</span></div>
+        <div class="file"><span class="fname">├── IMG_9625_avatar.ply</span><span class="fdesc">3D Gaussian Splat — open in Blender or SuperSplat</span></div>
+        <div class="file"><span class="fname">├── st1/checkpoints/st1_final.pth</span><span class="fdesc">Stage 1 model weights</span></div>
+        <div class="file"><span class="fname">└── st2/checkpoints/st2_final.pth</span><span class="fdesc">Final avatar model weights</span></div>
+      </div>
+      <div class="note">
+        💡 <strong>What is a 3D Gaussian Splat?</strong> The avatar is represented as 262,144 tiny 3D ellipsoids (Gaussians) instead of a traditional polygon mesh. This enables photorealistic rendering from any viewpoint and smooth animation of facial expressions.
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 4 -->
+  <div class="stage-card pending" id="stage-4">
+    <div class="stage-header" onclick="toggleStage(4)">
+      <div class="stage-num">4</div>
+      <div class="stage-title">
+        <h2>Audio-to-Motion</h2>
+        <p>Convert speech audio into facial expression sequences</p>
+      </div>
+      <div class="stage-status">Not started</div>
+      <div class="chevron">▾</div>
+    </div>
+    <div class="stage-body">
+      <div class="io-row">
+        <div class="io-box">
+          <h4>Input</h4>
+          <ul>
+            <li>Audio file (.wav / .mp3)</li>
+            <li>Person identity from Stage 3</li>
+          </ul>
+        </div>
+        <div class="io-box">
+          <h4>Output</h4>
+          <ul>
+            <li>Per-frame FLAME expression params</li>
+            <li>Jaw, lips, tongue motion curves</li>
+            <li>Head pose sequence</li>
+          </ul>
+        </div>
+      </div>
+      <div class="steps-title">Steps</div>
+      <div class="step">
+        <div></div>
+        <div class="step-info">
+          <strong>Speech-to-expression model</strong>
+          <span>Generate lip sync and facial expressions from audio waveform</span>
+          <button class="step-status-btn" data-status="pending" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Pending</span></button>
+        </div>
+      </div>
+      <div class="step">
+        <div></div>
+        <div class="step-info">
+          <strong>Head pose generation</strong>
+          <span>Generate natural head movement to accompany speech</span>
+          <button class="step-status-btn" data-status="pending" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Pending</span></button>
+        </div>
+      </div>
+      <div class="step">
+        <div></div>
+        <div class="step-info">
+          <strong>Motion sequence export</strong>
+          <span>Export as FLAME param sequence for Stage 5 renderer</span>
+          <button class="step-status-btn" data-status="pending" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Pending</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 5 -->
+  <div class="stage-card pending" id="stage-5">
+    <div class="stage-header" onclick="toggleStage(5)">
+      <div class="stage-num">5</div>
+      <div class="stage-title">
+        <h2>Inference &amp; Render</h2>
+        <p>Drive the 3D avatar with motion and render the final talking-head video</p>
+      </div>
+      <div class="stage-status">Not started</div>
+      <div class="chevron">▾</div>
+    </div>
+    <div class="stage-body">
+      <div class="io-row">
+        <div class="io-box">
+          <h4>Input</h4>
+          <ul>
+            <li>Trained avatar from Stage 3</li>
+            <li>Motion sequence from Stage 4</li>
+            <li>Target camera viewpoint</li>
+          </ul>
+        </div>
+        <div class="io-box">
+          <h4>Output</h4>
+          <ul>
+            <li>Talking-head video (.mp4)</li>
+            <li>Photorealistic face + lip sync</li>
+            <li>Any resolution / viewpoint</li>
+          </ul>
+        </div>
+      </div>
+      <div class="steps-title">Steps</div>
+      <div class="step">
+        <div></div>
+        <div class="step-info">
+          <strong>Avatar rendering</strong>
+          <span>Render the 3D Gaussian avatar driven by motion sequence frame by frame</span>
+          <button class="step-status-btn" data-status="pending" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Pending</span></button>
+        </div>
+      </div>
+      <div class="step">
+        <div></div>
+        <div class="step-info">
+          <strong>Post-processing</strong>
+          <span>Enhance output with HuFix detail restoration model</span>
+          <button class="step-status-btn" data-status="pending" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Pending</span></button>
+        </div>
+      </div>
+      <div class="step">
+        <div></div>
+        <div class="step-info">
+          <strong>Final video export</strong>
+          <span>Encode frames to MP4 with audio track</span>
+          <button class="step-status-btn" data-status="pending" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Pending</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>Reblium Avatar Pipeline · Last updated: June 2026</footer>
+
+<script>
+  const STATES = ['pending', 'doing', 'done'];
+  const LABELS = { pending: 'Pending', doing: 'Doing...', done: 'Done' };
+
+  function cycleStatus(btn) {
+    const key = btn.dataset.key;
+    const cur = STATES.indexOf(btn.dataset.status);
+    const next = STATES[(cur + 1) % STATES.length];
+    applyStatus(btn, next);
+    localStorage.setItem(key, next);
+    updateStageStatus(btn.closest('.stage-card'));
+  }
+
+  function applyStatus(btn, status) {
+    btn.dataset.status = status;
+    btn.querySelector('.label').textContent = LABELS[status];
+  }
+
+  function updateStageStatus(card) {
+    const btns = card.querySelectorAll('.step-status-btn');
+    const statuses = Array.from(btns).map(b => b.dataset.status);
+    const allDone = statuses.every(s => s === 'done');
+    const anyDoing = statuses.some(s => s === 'doing');
+    const anyPending = statuses.some(s => s === 'pending');
+
+    // Determine new stage state
+    let newState, label;
+    if (allDone) { newState = 'done'; label = 'Complete'; }
+    else if (anyDoing) { newState = 'active'; label = 'In Progress'; }
+    else { newState = 'pending'; label = 'Not started'; }
+
+    // Update card class (keep 'open' if present)
+    const isOpen = card.classList.contains('open');
+    card.className = 'stage-card ' + newState + (isOpen ? ' open' : '');
+
+    // Update status badge text
+    card.querySelector('.stage-status').textContent = label;
+  }
+
+  function toggleStage(n) {
+    const card = document.getElementById('stage-' + n);
+    card.classList.toggle('open');
+  }
+  function openStage(n) {
+    const card = document.getElementById('stage-' + n);
+    card.classList.add('open');
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // Assign stable keys, restore saved statuses, update stage headers
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.step-status-btn').forEach((btn, i) => {
+      const key = 'reblium-step-' + i;
+      btn.dataset.key = key;
+      const saved = localStorage.getItem(key);
+      if (saved) applyStatus(btn, saved);
+    });
+    // Recalculate all stage headers from restored step statuses
+    document.querySelectorAll('.stage-card').forEach(updateStageStatus);
+  });
+</script>
+</body>
+</html>

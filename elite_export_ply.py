@@ -19,44 +19,60 @@ def quat_wxyz_to_xyzw(q):
 
 
 def save_ply(path, positions, colors, scales, rotations, opacities):
-    """Save 3D Gaussian Splatting PLY (standard Inria format)."""
-    N = positions.shape[0]
+    """Save 3D Gaussian Splatting PLY (standard Inria format).
 
-    # Build PLY header
-    props = [
-        ('x', 'float'), ('y', 'float'), ('z', 'float'),
-        ('nx', 'float'), ('ny', 'float'), ('nz', 'float'),
-        ('f_dc_0', 'float'), ('f_dc_1', 'float'), ('f_dc_2', 'float'),
-        ('opacity', 'float'),
-        ('scale_0', 'float'), ('scale_1', 'float'), ('scale_2', 'float'),
-        ('rot_0', 'float'), ('rot_1', 'float'), ('rot_2', 'float'), ('rot_3', 'float'),
-    ]
+    Standard 3DGS PLY stores:
+      - positions: raw xyz
+      - normals: zeros
+      - f_dc: SH DC coefficients (color in SH space)
+      - opacity: logit(opacity)
+      - scale: log(scale)
+      - rot: quaternion wxyz normalized
+    """
+    N = positions.shape[0]
+    print(f"  positions range: {positions.min():.3f} ~ {positions.max():.3f}")
+    print(f"  colors range:    {colors.min():.3f} ~ {colors.max():.3f}")
+    print(f"  scales range:    {scales.min():.6f} ~ {scales.max():.6f}")
+    print(f"  opacity range:   {opacities.min():.3f} ~ {opacities.max():.3f}")
+
+    # colors are in [0,1] linear — convert to SH DC coefficients
+    C0 = 0.28209479177387814
+    sh_dc = (colors.clip(0, 1) - 0.5) / C0  # shape (N, 3)
+
+    # opacity: model outputs sigmoid(x), store as logit = log(p/(1-p))
+    op = opacities.clip(1e-6, 1 - 1e-6)
+    logit_op = np.log(op / (1.0 - op))      # shape (N,) or (N,1)
+    if logit_op.ndim == 1:
+        logit_op = logit_op.reshape(-1, 1)
+
+    # scales: model outputs positive scales, store as log
+    log_scales = np.log(scales.clip(1e-8))   # shape (N, 3)
+
+    # rotations: normalize quaternions wxyz
+    rot_norm = rotations / (np.linalg.norm(rotations, axis=1, keepdims=True) + 1e-8)
+
+    normals = np.zeros((N, 3), dtype=np.float32)
+
+    data = np.concatenate([
+        positions.astype(np.float32),    # x y z
+        normals,                          # nx ny nz
+        sh_dc.astype(np.float32),        # f_dc_0 f_dc_1 f_dc_2
+        logit_op.astype(np.float32),     # opacity
+        log_scales.astype(np.float32),   # scale_0 scale_1 scale_2
+        rot_norm.astype(np.float32),     # rot_0 rot_1 rot_2 rot_3
+    ], axis=1)
 
     header = f"ply\nformat binary_little_endian 1.0\nelement vertex {N}\n"
-    for name, dtype in props:
-        header += f"property {dtype} {name}\n"
+    for name in ['x','y','z','nx','ny','nz','f_dc_0','f_dc_1','f_dc_2',
+                 'opacity','scale_0','scale_1','scale_2','rot_0','rot_1','rot_2','rot_3']:
+        header += f"property float {name}\n"
     header += "end_header\n"
-
-    # SH DC coefficient = color * C0 (C0 = 0.28209479177387814)
-    C0 = 0.28209479177387814
-    sh_dc = (colors - 0.5) / C0  # inverse of sigmoid-like activation
-
-    # Build data array
-    normals = np.zeros((N, 3), dtype=np.float32)
-    data = np.concatenate([
-        positions.astype(np.float32),           # x y z
-        normals,                                 # nx ny nz
-        sh_dc.astype(np.float32),               # f_dc_0 f_dc_1 f_dc_2
-        np.log(opacities.clip(1e-6, 1-1e-6)).astype(np.float32).reshape(-1, 1),  # opacity (logit)
-        np.log(scales.clip(1e-8)).astype(np.float32),  # scale (log)
-        rotations.astype(np.float32),           # rot wxyz
-    ], axis=1)
 
     with open(path, 'wb') as f:
         f.write(header.encode('ascii'))
         f.write(data.tobytes())
 
-    print(f"  Saved {N} Gaussians → {path}")
+    print(f"  Saved {N} Gaussians → {path} ({os.path.getsize(path)/1024/1024:.1f} MB)")
 
 
 def main():
