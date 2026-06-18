@@ -39,14 +39,12 @@ def save_ply(path, positions, colors, scales, rotations, opacities):
     C0 = 0.28209479177387814
     sh_dc = (colors.clip(0, 1) - 0.5) / C0  # shape (N, 3)
 
-    # opacity: model outputs sigmoid(x), store as logit = log(p/(1-p))
+    # opacity: already sigmoid output (0~1), convert to logit for PLY
     op = opacities.clip(1e-6, 1 - 1e-6)
-    logit_op = np.log(op / (1.0 - op))      # shape (N,) or (N,1)
-    if logit_op.ndim == 1:
-        logit_op = logit_op.reshape(-1, 1)
+    logit_op = np.log(op / (1.0 - op)).reshape(-1, 1)
 
-    # scales: model outputs positive scales, store as log
-    log_scales = np.log(scales.clip(1e-8))   # shape (N, 3)
+    # scales: already positive linear values, store as log for PLY
+    log_scales = np.log(scales.clip(1e-8))
 
     # rotations: normalize quaternions wxyz
     rot_norm = rotations / (np.linalg.norm(rotations, axis=1, keepdims=True) + 1e-8)
@@ -157,12 +155,16 @@ def main():
 
     positions  = gs['primpos_posed'][0].cpu().numpy()   # (P, 3)
     rotations  = gs['primqvec_posed'][0].cpu().numpy()  # (P, 4) wxyz
-    scales     = gs['primscale'][0].cpu().numpy()        # (P, 3)
-    opacities  = gs['opacity'][0].cpu().numpy()          # (P, 1) or (P,)
-    colors     = gs['color'][0].cpu().numpy()            # (P, 3)
+    scales     = gs['primscale'][0].cpu().numpy()        # (P, 2) — 2D splat
+    opacities  = gs['opacity'][0].cpu().numpy()          # (P, 1) already sigmoid
+    colors     = gs['color'][0].cpu().numpy()            # (P, 3) already 0~1
 
     if opacities.ndim == 2:
         opacities = opacities[:, 0]
+
+    # 2D splat: pad scale to 3 components (sz = very small flat disc)
+    if scales.shape[1] == 2:
+        scales = np.concatenate([scales, np.full((scales.shape[0], 1), 1e-5)], axis=1)
 
     os.makedirs(os.path.dirname(os.path.abspath(args.out_path)), exist_ok=True)
     save_ply(args.out_path, positions, colors, scales, rotations, opacities)
