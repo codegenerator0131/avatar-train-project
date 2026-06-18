@@ -66,14 +66,8 @@ fi
 echo "Step 1/3 — Preparing motion drive data from Stage 2 VHAP output..."
 echo ""
 
-# Remove old broken drive dir if it has 0 frames
-if [ -f "$DRIVE_DIR/transforms.json" ]; then
-    FRAME_COUNT=$("$ELITE_PYTHON" -c "import json; d=json.load(open('$DRIVE_DIR/transforms.json')); print(len(d['frames']))" 2>/dev/null || echo "0")
-    if [ "$FRAME_COUNT" = "0" ]; then
-        echo "  Removing empty drive dir..."
-        rm -rf "$DRIVE_DIR"
-    fi
-fi
+# Always rebuild drive dir cleanly
+rm -rf "$DRIVE_DIR"
 mkdir -p "$DRIVE_DIR"
 
 "$ELITE_PYTHON" - <<PYEOF
@@ -136,33 +130,12 @@ SAVE_PATH_RGB="$VIS_DIR/st2_rgb/${MOTION_NAME}"
 SAVE_PATH_NRM="$VIS_DIR/st2_nrm/${MOTION_NAME}"
 mkdir -p "$SAVE_PATH_RGB" "$SAVE_PATH_NRM" "$VIS_DIR/vid_drive/${MOTION_NAME}"
 
-# Patch render.py to use our cam_id (default is '222200037' which doesn't match our data)
-"$ELITE_PYTHON" - <<PYEOF2
-path = "$ELITE_DIR/src/render.py"
-with open(path) as f:
-    code = f.read()
-patched = code.replace(
-    "cam_ids=None,",
-    "cam_ids=['$CAM_ID'],",
-)
-if patched != code:
-    with open(path, 'w') as f:
-        f.write(patched)
-    print("  Patched render.py: cam_ids=['$CAM_ID']")
-else:
-    print("  render.py already patched or cam_ids not found — checking...")
-    # Also try patching the default in TestMotionRenderDataset call
-    import re
-    patched2 = re.sub(
-        r"cam_ids=\[.*?\]",
-        "cam_ids=['$CAM_ID']",
-        code,
-    )
-    if patched2 != code:
-        with open(path, 'w') as f:
-            f.write(patched2)
-        print("  Patched render.py via regex")
-PYEOF2
+# Patch render.py and test_dataloader.py to accept our camera_id
+# Use sed so shell variable $CAM_ID expands correctly
+sed -i "s/cam_ids=None,/cam_ids=['${CAM_ID}'],/" "$ELITE_DIR/src/render.py" || true
+sed -i "s/cam_ids=\['222200037'\]/cam_ids=['${CAM_ID}']/" "$ELITE_DIR/src/render.py" || true
+sed -i "s/'222200037'/'${CAM_ID}'/" "$ELITE_DIR/src/dataloader/test_dataloader.py" || true
+echo "  Patched cam_ids to: $CAM_ID"
 
 "$ELITE_PYTHON" src/render.py \
     --cfg_file "$EXP_PATH/st2/config.yaml" \
