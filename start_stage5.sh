@@ -172,11 +172,11 @@ if [ -f "$FINAL_RGB" ]; then
 else
     cd "$ELITE_DIR"
 
-    REF_IMAGE="$PROCESSED_TARGET/images/000000_00.png"
-    if [ ! -f "$REF_IMAGE" ]; then
-        REF_IMAGE=$(find "$PROCESSED_TARGET/images" -name "*.png" 2>/dev/null | sort | head -1 || true)
-    fi
-    if [ -z "$REF_IMAGE" ] || [ ! -f "$REF_IMAGE" ]; then
+    REF_IMAGE=""
+    for _f in "$PROCESSED_TARGET/images/"*.png; do
+        [ -f "$_f" ] && REF_IMAGE="$_f" && break
+    done
+    if [ -z "$REF_IMAGE" ]; then
         echo "ERROR: Could not find reference image in $PROCESSED_TARGET/images"
         exit 1
     fi
