@@ -261,10 +261,16 @@ one_hot = torch.zeros(1, NUM_TRAIN_SUBJECTS).to(device)
 one_hot[0, 0] = 1.0
 
 # Load CodeTalker model — build minimal config namespace
+import pickle as _pkl
+with open("$CODETALKER_DIR/vocaset/FLAME_template.pkl", 'rb') as _f:
+    _tpl = _pkl.load(_f, encoding='latin1')
+_V = len(_tpl['flame_neutral'])  # total floats = V*3
+
 class CFG:
+    dataset = 'vocaset'
     arch = 'stage2'
-    in_dim = 15069
-    vertice_dim = 15069
+    in_dim = _V
+    vertice_dim = _V
     feature_dim = 1024
     hidden_size = 1024
     num_hidden_layers = 6
