@@ -166,7 +166,7 @@ else
 
 
     # Checkpoints are on Google Drive — use gdown
-    "$ELITE_PYTHON" -m pip install gdown --quiet
+    "$ELITE_PYTHON" -m pip install "gdown>=4.6.0" --quiet
     gdrive_download() {
         local file_id="$1" dst="$2" name="$3"
         if [ -f "$dst" ] && [ "$(stat -c%s "$dst" 2>/dev/null || echo 0)" -lt 100000 ]; then
@@ -174,7 +174,7 @@ else
         fi
         [ -f "$dst" ] && return 0
         echo "  Downloading $name from Google Drive..."
-        "$ELITE_PYTHON" -m gdown "$file_id" -O "$dst" --fuzzy
+        "$ELITE_PYTHON" -m gdown "https://drive.google.com/uc?id=${file_id}" -O "$dst"
     }
     gdrive_download "1phqJ_6AqTJmMdSq-__KY6eVwN4J9iCGP" "$CODETALKER_ST2" "vocaset_stage2.pth.tar"
     gdrive_download "1RszIMsxcWX7WPlaODqJvax8M_dnCIzk5" "$CODETALKER_ST1" "vocaset_stage1.pth.tar"
