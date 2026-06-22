@@ -271,9 +271,14 @@ _cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 from models.stage2 import CodeTalker
 model = CodeTalker(_cfg)
+# stage2 checkpoint only contains stage2 weights (not autoencoder)
+# autoencoder is already loaded inside CodeTalker.__init__ via vqvae_pretrained_path
+# so load stage2 weights with strict=False to skip autoencoder keys
 ckpt = torch.load(_cfg.model_path, map_location=device)
 state = ckpt.get('state_dict', ckpt)
-model.load_state_dict(state)
+# Remove autoencoder keys from state_dict — they are already loaded in __init__
+state = {k: v for k, v in state.items() if not k.startswith('autoencoder.')}
+model.load_state_dict(state, strict=False)
 model = model.to(device).eval()
 print("  Model loaded")
 
