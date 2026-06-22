@@ -166,13 +166,20 @@ else
 
     download_file() {
         local url="$1" dst="$2" name="$3"
+        # Delete if file exists but is too small (failed/partial download)
+        if [ -f "$dst" ] && [ "$(stat -c%s "$dst" 2>/dev/null || echo 0)" -lt 100000 ]; then
+            echo "  Removing corrupt $name (too small)..."
+            rm -f "$dst"
+        fi
         if [ -f "$dst" ]; then return 0; fi
         echo "  Downloading $name..."
         # Try wget, then curl, then Python urllib
-        wget -q --show-progress "$url" -O "$dst" 2>/dev/null && return 0
-        curl -L --progress-bar "$url" -o "$dst" 2>/dev/null && return 0
+        wget --show-progress "$url" -O "$dst" 2>/dev/null && [ "$(stat -c%s "$dst")" -gt 100000 ] && return 0
+        rm -f "$dst"
+        curl -L --progress-bar "$url" -o "$dst" 2>/dev/null && [ "$(stat -c%s "$dst")" -gt 100000 ] && return 0
+        rm -f "$dst"
         "$ELITE_PYTHON" - <<DLEOF
-import urllib.request, sys
+import urllib.request
 url = "$url"
 dst = "$dst"
 def progress(count, block, total):
