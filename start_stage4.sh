@@ -414,12 +414,14 @@ if not os.path.isdir(tracked_base):
 last_run = sorted(os.listdir(tracked_base))[-1]
 pid = np.load(os.path.join(tracked_base, last_run, 'tracked_flame_params_30.npz'), allow_pickle=True)
 
-pid_shape = torch.FloatTensor(pid['shape'][0:1]).to(device)         # (1, n_shape)
-pid_stoffset = torch.FloatTensor(pid['static_offset'][0:1]).to(device)  # (1, V, 3)
-pid_rot   = pid['rotation'][0]    # neutral head orientation (3,)
-pid_trans = pid['translation'][0] # head position (3,)
-pid_neck  = pid['neck_pose'][0]   # neck (3,)
-pid_eyes  = pid['eyes_pose'][0]   # eyes (6,)
+_shape_raw = np.array(pid['shape'])
+pid_shape = torch.FloatTensor(_shape_raw.reshape(1, -1) if _shape_raw.ndim == 1 else _shape_raw[0:1]).to(device)  # (1, n_shape)
+_soff_raw = np.array(pid['static_offset'])
+pid_stoffset = torch.FloatTensor(_soff_raw.reshape(1, -1, 3) if _soff_raw.ndim == 2 else _soff_raw[0:1]).to(device)  # (1, V, 3)
+pid_rot   = np.array(pid['rotation']).reshape(-1, 3)[0]    # (3,)
+pid_trans = np.array(pid['translation']).reshape(-1, 3)[0] # (3,)
+pid_neck  = np.array(pid['neck_pose']).reshape(-1, 3)[0]   # (3,)
+pid_eyes  = np.array(pid['eyes_pose']).reshape(-1, 6)[0]   # (6,)
 
 rot_t   = torch.FloatTensor(pid_rot).unsqueeze(0).to(device)
 trans_t = torch.FloatTensor(pid_trans).unsqueeze(0).to(device)
