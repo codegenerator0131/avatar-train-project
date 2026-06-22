@@ -192,9 +192,16 @@ else
     fi
 
     # Install CodeTalker deps into ELITE env
-    # transformers must be 4.27.4 — CodeTalker's wav2vec.py breaks with newer versions
     echo "  Installing CodeTalker dependencies..."
-    "$ELITE_PYTHON" -m pip install librosa==0.9.2 "transformers==4.27.4" --quiet 2>/dev/null || true
+    "$ELITE_PYTHON" -m pip install librosa==0.9.2 --quiet 2>/dev/null || true
+
+    # Patch CodeTalker wav2vec.py for newer transformers (encoder now returns tuple, not tensor)
+    WAV2VEC_PY="$CODETALKER_DIR/models/lib/wav2vec.py"
+    if grep -q 'encoder_outputs = self.encoder(' "$WAV2VEC_PY" 2>/dev/null; then
+        sed -i 's/encoder_outputs = self\.encoder(/encoder_outputs_raw = self.encoder(/g' "$WAV2VEC_PY"
+        sed -i '/encoder_outputs_raw = self\.encoder(/a\        encoder_outputs = encoder_outputs_raw[0] if isinstance(encoder_outputs_raw, tuple) else encoder_outputs_raw' "$WAV2VEC_PY"
+        echo "  Patched wav2vec.py for transformers compatibility"
+    fi
 
     # Download VOCASET checkpoints if missing
     mkdir -p "$CODETALKER_DIR/vocaset"
