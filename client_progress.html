@@ -338,14 +338,14 @@
   </div>
 
   <!-- STAGE 4 -->
-  <div class="stage-card pending" id="stage-4">
+  <div class="stage-card done" id="stage-4">
     <div class="stage-header" onclick="toggleStage(4)">
       <div class="stage-num">4</div>
       <div class="stage-title">
-        <h2>Audio-to-Motion</h2>
-        <p>Convert speech audio into facial expression sequences</p>
+        <h2>Text-to-Speech &amp; Audio-to-Motion</h2>
+        <p>User types text → cloned voice speaks it → facial expression &amp; jaw motion generated per frame</p>
       </div>
-      <div class="stage-status">Not started</div>
+      <div class="stage-status">Code Complete</div>
       <div class="chevron">▾</div>
     </div>
     <div class="stage-body">
@@ -353,16 +353,18 @@
         <div class="io-box">
           <h4>Input</h4>
           <ul>
-            <li>Audio file (.wav / .mp3)</li>
-            <li>Person identity from Stage 3</li>
+            <li>Text string (typed by user)</li>
+            <li>Voice sample from Stage 2 (extracted from original video)</li>
+            <li>Person identity &amp; shape from Stage 3</li>
           </ul>
         </div>
         <div class="io-box">
           <h4>Output</h4>
           <ul>
-            <li>Per-frame FLAME expression params</li>
-            <li>Jaw, lips, tongue motion curves</li>
-            <li>Head pose sequence</li>
+            <li>Generated audio (.wav) in person's cloned voice</li>
+            <li>Per-frame FLAME params: jaw, lips, expression (100D)</li>
+            <li>Head pose from original video (stable neutral pose)</li>
+            <li>transforms.json ready for Stage 5</li>
           </ul>
         </div>
       </div>
@@ -370,25 +372,33 @@
       <div class="step">
         <div></div>
         <div class="step-info">
-          <strong>Speech-to-expression model</strong>
-          <span>Generate lip sync and facial expressions from audio waveform</span>
-          <button class="step-status-btn" data-status="pending" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Pending</span></button>
+          <strong>Voice cloning &amp; TTS (XTTS v2)</strong>
+          <span>Clone the person's voice from original video audio, then synthesize speech from input text</span>
+          <button class="step-status-btn" data-status="done" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Done</span></button>
         </div>
       </div>
       <div class="step">
         <div></div>
         <div class="step-info">
-          <strong>Head pose generation</strong>
-          <span>Generate natural head movement to accompany speech</span>
-          <button class="step-status-btn" data-status="pending" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Pending</span></button>
+          <strong>Audio → mesh vertices (CodeTalker VOCASET)</strong>
+          <span>Drive 5023-vertex FLAME mesh from speech audio. Model: CodeTalker trained on VOCASET dataset (CVPR 2023)</span>
+          <button class="step-status-btn" data-status="done" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Done</span></button>
         </div>
       </div>
       <div class="step">
         <div></div>
         <div class="step-info">
-          <strong>Motion sequence export</strong>
-          <span>Export as FLAME param sequence for Stage 5 renderer</span>
-          <button class="step-status-btn" data-status="pending" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Pending</span></button>
+          <strong>FLAME fitting (vertices → expression params)</strong>
+          <span>Fit FLAME expression (100D) + jaw parameters to predicted mesh via gradient descent. Head pose copied from original video.</span>
+          <button class="step-status-btn" data-status="done" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Done</span></button>
+        </div>
+      </div>
+      <div class="step">
+        <div></div>
+        <div class="step-info">
+          <strong>Per-frame .npz export + transforms.json</strong>
+          <span>Export per-frame FLAME params as .npz files and builds transforms.json compatible with Stage 5 renderer</span>
+          <button class="step-status-btn" data-status="done" onclick="cycleStatus(this)"><span class="dot"></span><span class="label">Done</span></button>
         </div>
       </div>
     </div>

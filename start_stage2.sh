@@ -73,6 +73,17 @@ echo ""
     --src_folder "$TRACKED_DIR" \
     --tgt_folder "$NERF_DIR"
 
+# --- Extract audio from original video
+AUDIO_OUT="$SCRIPT_DIR/data/capture/${SEQUENCE}.wav"
+echo ""
+echo "Extracting audio from video..."
+if [ -f "$AUDIO_OUT" ]; then
+    echo "  [skip] Audio already extracted: $AUDIO_OUT"
+else
+    ffmpeg -i "$VIDEO" -vn -acodec pcm_s16le -ar 16000 -ac 1 "$AUDIO_OUT" -y
+    echo "  Audio saved: $AUDIO_OUT"
+fi
+
 echo ""
 echo "================================================"
 echo "  Stage 2 complete!"
@@ -85,5 +96,6 @@ echo "  images/             — matted frames (white background)"
 echo "  fg_masks/           — foreground alpha masks"
 echo "  flame_param/        — per-frame FLAME parameters (.npz)"
 echo "  canonical.obj       — FLAME neutral mesh"
+echo "Audio: $AUDIO_OUT (16kHz mono WAV for Stage 4)"
 echo ""
 echo "Next: bash start.sh  (choose stage 3)"

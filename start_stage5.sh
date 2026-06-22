@@ -31,6 +31,10 @@ echo ""
 echo "Person ID: $ID"
 echo ""
 
+# --- Motion source: Stage 4 output dir (or leave empty to use original video motion)
+echo "Motion source dir (from Stage 4 output, or press Enter to use original video):"
+read -e -i "" -p "  Stage 4 output dir (empty = original video): " STAGE4_OUTPUT_DIR
+
 # --- Paths
 PROCESSED_DIR="$ELITE_DIR/data/source/processed"
 TRACKED_DIR="$ELITE_DIR/data/source/tracked"
@@ -38,9 +42,18 @@ PROCESSED_SUFFIX="_whiteBg_staticOffset_maskBelowLine"
 PROCESSED_TARGET="$PROCESSED_DIR/${ID}${PROCESSED_SUFFIX}"
 EXP_PATH="$ELITE_DIR/outputs/$ID"
 ST2_CKPT="$EXP_PATH/st2/checkpoints/st2_final.pth"
-DRIVE_DIR="$ELITE_DIR/data/drive/${ID}"
+
+# Motion name: use stage4 subdir name if provided, otherwise use video ID
+if [ -n "$STAGE4_OUTPUT_DIR" ] && [ -d "$STAGE4_OUTPUT_DIR" ]; then
+    MOTION_NAME="stage4_$(basename "$STAGE4_OUTPUT_DIR")"
+    USE_STAGE4_MOTION=1
+else
+    MOTION_NAME="$ID"
+    USE_STAGE4_MOTION=0
+fi
+
+DRIVE_DIR="$ELITE_DIR/data/drive/${MOTION_NAME}"
 VIS_DIR="$EXP_PATH/vis_motion"
-MOTION_NAME="$ID"
 SAVE_PATH_RGB="$VIS_DIR/st2_rgb/${MOTION_NAME}"
 SAVE_PATH_NRM="$VIS_DIR/st2_nrm/${MOTION_NAME}"
 FINAL_RGB="$VIS_DIR/${ID}_rgb_${MOTION_NAME}.mp4"
@@ -74,6 +87,28 @@ echo ""
 
 if [ -f "$DRIVE_DIR/transforms.json" ]; then
     echo "  [skip] Drive data already exists: $DRIVE_DIR"
+elif [ "$USE_STAGE4_MOTION" = "1" ]; then
+    # Stage 4 already produced transforms.json + flame_param/ — just symlink the drive dir
+    echo "  Using Stage 4 motion output: $STAGE4_OUTPUT_DIR"
+    mkdir -p "$DRIVE_DIR"
+    cp "$STAGE4_OUTPUT_DIR/transforms.json" "$DRIVE_DIR/transforms.json"
+    for subdir in images fg_masks flame_param; do
+        src="$STAGE4_OUTPUT_DIR/$subdir"
+        dst="$DRIVE_DIR/$subdir"
+        if [ -d "$src" ] && [ ! -e "$dst" ]; then
+            ln -s "$src" "$dst"
+            echo "  Symlinked $subdir"
+        fi
+    done
+    # Stage 4 transforms use placeholder image paths — symlink from processed for reference images
+    for subdir in images fg_masks; do
+        dst="$DRIVE_DIR/$subdir"
+        if [ ! -e "$dst" ]; then
+            ln -s "$PROCESSED_TARGET/$subdir" "$dst" && echo "  Symlinked $subdir from processed"
+        fi
+    done
+    FRAME_COUNT=$(python3 -c "import json; d=json.load(open('$DRIVE_DIR/transforms.json')); print(len(d['frames']))")
+    echo "  Drive data ready: $FRAME_COUNT frames"
 else
     mkdir -p "$DRIVE_DIR"
     "$ELITE_PYTHON" - <<PYEOF
@@ -182,8 +217,9 @@ else
     fi
     echo "  Reference image: $REF_IMAGE"
 
-    # Use chunked post_process script to avoid OOM (original loads all frames at once)
+    # Try HuFix enhancement (requires ~9GB VRAM — skips gracefully if OOM)
     cp "$SCRIPT_DIR/hufix_chunked.py" "$ELITE_DIR/hufix_chunked.py"
+    HUFIX_OK=0
     PYTHONPATH="$ELITE_DIR:${PYTHONPATH:-}" "$ELITE_PYTHON" "$ELITE_DIR/hufix_chunked.py" \
         --ref_image "$REF_IMAGE" \
         --input_rgb "$SAVE_PATH_RGB" \
@@ -191,8 +227,18 @@ else
         --save_dir_rgb "${SAVE_PATH_RGB}_difix" \
         --save_dir_nrm "${SAVE_PATH_NRM}_difix" \
         --save_fps 25 \
-        --chunk_size 8 \
-        --model_path "$HUFIX_CKPT"
+        --chunk_size 1 \
+        --model_path "$HUFIX_CKPT" && HUFIX_OK=1 || echo "  [warn] HuFix OOM — using raw render output instead"
+
+    if [ "$HUFIX_OK" = "1" ]; then
+        [ -f "$VIS_DIR/final_rgb_${MOTION_NAME}_difix.mp4" ] && mv "$VIS_DIR/final_rgb_${MOTION_NAME}_difix.mp4" "$FINAL_RGB"
+        [ -f "$VIS_DIR/final_nrm_${MOTION_NAME}_difix.mp4" ] && mv "$VIS_DIR/final_nrm_${MOTION_NAME}_difix.mp4" "$FINAL_NRM"
+    else
+        # Fallback: package raw render frames directly as final output
+        echo "  Packaging raw render as final output..."
+        ffmpeg -y -framerate 25 -i "$SAVE_PATH_RGB/%05d.png" -c:v libx264 -pix_fmt yuv420p -crf 20 "$FINAL_RGB"
+        ffmpeg -y -framerate 25 -i "$SAVE_PATH_NRM/%05d.png" -c:v libx264 -pix_fmt yuv420p -crf 20 "$FINAL_NRM"
+    fi
 
     [ -f "$VIS_DIR/final_rgb_${MOTION_NAME}_difix.mp4" ] && mv "$VIS_DIR/final_rgb_${MOTION_NAME}_difix.mp4" "$FINAL_RGB"
     [ -f "$VIS_DIR/final_nrm_${MOTION_NAME}_difix.mp4" ] && mv "$VIS_DIR/final_nrm_${MOTION_NAME}_difix.mp4" "$FINAL_NRM"

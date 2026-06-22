@@ -43,10 +43,13 @@ if __name__ == "__main__":
     os.makedirs(args.save_dir_rgb, exist_ok=True)
     os.makedirs(args.save_dir_nrm, exist_ok=True)
 
-    # Load model once
+    # Load model once with CPU offloading to save VRAM
     print("Loading HuFix model...")
     model = Difix(pretrained_path=args.model_path, timestep=199, mv_unet=True)
     model.set_eval()
+    # Offload VAE to CPU to save VRAM — moves to GPU only during forward pass
+    model.vae.to("cpu")
+    torch.cuda.empty_cache()
 
     to_tensor = transforms.ToTensor()
     to_pil = transforms.ToPILImage()
