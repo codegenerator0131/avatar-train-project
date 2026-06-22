@@ -261,36 +261,28 @@ one_hot = torch.zeros(1, NUM_TRAIN_SUBJECTS).to(device)
 one_hot[0, 0] = 1.0
 
 # Load CodeTalker model — build minimal config namespace
+# Load config from CodeTalker's own yaml — flattens all sections into one namespace
+import yaml as _yaml
+with open("$CODETALKER_DIR/config/vocaset/demo.yaml") as _f:
+    _raw = _yaml.safe_load(_f)
+
 class CFG:
-    dataset = 'vocaset'
-    arch = 'stage2'
-    in_dim = 15069
-    vertice_dim = 15069
-    feature_dim = 1024
-    hidden_size = 1024
-    num_hidden_layers = 6
-    num_attention_heads = 8
-    intermediate_size = 1536
-    face_quan_num = 16
-    n_embed = 256
-    zquant_dim = 64
-    period = 30
-    fps = 30
-    num_layers = 6
-    n_head = 4
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    autoencoder = 'stage1_vocaset'
-    wav2vec2model_path = 'facebook/wav2vec2-base-960h'
-    train_subjects = ('FaceTalk_170728_03272_TA FaceTalk_170904_00128_TA '
-                      'FaceTalk_170725_00137_TA FaceTalk_170915_00223_TA '
-                      'FaceTalk_170811_03274_TA FaceTalk_170913_03279_TA '
-                      'FaceTalk_170904_03276_TA FaceTalk_170912_03278_TA')
-    vqvae_pretrained_path = "$CODETALKER_ST1"
-    model_path = "$CODETALKER_ST2"
+    pass
+
+_cfg = CFG()
+for _section in _raw.values():
+    if isinstance(_section, dict):
+        for _k, _v in _section.items():
+            setattr(_cfg, _k, _v)
+
+# Override paths to point to our downloaded checkpoints
+_cfg.vqvae_pretrained_path = "$CODETALKER_ST1"
+_cfg.model_path = "$CODETALKER_ST2"
+_cfg.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 from models.stage2 import CodeTalker
-model = CodeTalker(CFG())
-ckpt = torch.load(CFG.model_path, map_location=device)
+model = CodeTalker(_cfg)
+ckpt = torch.load(_cfg.model_path, map_location=device)
 state = ckpt.get('state_dict', ckpt)
 model.load_state_dict(state)
 model = model.to(device).eval()
