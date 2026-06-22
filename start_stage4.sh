@@ -195,12 +195,31 @@ else
     echo "  Installing CodeTalker dependencies..."
     "$ELITE_PYTHON" -m pip install librosa==0.9.2 --quiet 2>/dev/null || true
 
-    # Patch CodeTalker wav2vec.py for newer transformers (encoder now returns tuple, not tensor)
+    # Patch CodeTalker wav2vec.py for newer transformers (encoder returns tuple/object, not tensor)
     WAV2VEC_PY="$CODETALKER_DIR/models/lib/wav2vec.py"
-    if grep -q 'encoder_outputs = self.encoder(' "$WAV2VEC_PY" 2>/dev/null; then
-        sed -i 's/encoder_outputs = self\.encoder(/encoder_outputs_raw = self.encoder(/g' "$WAV2VEC_PY"
-        sed -i '/encoder_outputs_raw = self\.encoder(/a\        encoder_outputs = encoder_outputs_raw[0] if isinstance(encoder_outputs_raw, tuple) else encoder_outputs_raw' "$WAV2VEC_PY"
-        echo "  Patched wav2vec.py for transformers compatibility"
+    if grep -q 'encoder_outputs = self.encoder\|encoder_outputs_obj = self.encoder' "$WAV2VEC_PY" 2>/dev/null; then
+        "$ELITE_PYTHON" - <<PATCHEOF
+import re
+path = "$WAV2VEC_PY"
+with open(path) as f:
+    code = f.read()
+# Skip if already patched
+if 'encoder_outputs_obj' in code and 'encoder_outputs_obj[0]' in code:
+    print("  wav2vec.py already patched")
+else:
+    # Clean up any broken previous patch attempts
+    code = code.replace('encoder_outputs_raw = self.encoder(', 'encoder_outputs = self.encoder(')
+    code = re.sub(r'\n\s*encoder_outputs = encoder_outputs_raw\[0\][^\n]*', '', code)
+    # Apply clean patch
+    code = re.sub(
+        r'([ \t]*)(encoder_outputs) = (self\.encoder\((?:[^()]*|\([^()]*\))*\))',
+        r'\1\2_obj = \3\n\1\2 = \2_obj[0] if isinstance(\2_obj, tuple) else \2_obj',
+        code
+    )
+    with open(path, 'w') as f:
+        f.write(code)
+    print("  Patched wav2vec.py for transformers compatibility")
+PATCHEOF
     fi
 
     # Download VOCASET checkpoints if missing
