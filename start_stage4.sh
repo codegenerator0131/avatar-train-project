@@ -163,19 +163,32 @@ else
 
     # Download VOCASET checkpoints if missing
     mkdir -p "$CODETALKER_DIR/vocaset"
-    if [ ! -f "$CODETALKER_ST2" ]; then
-        echo "  Downloading CodeTalker VOCASET stage2 checkpoint..."
-        wget -q --show-progress \
-            "https://github.com/Doubiiu/CodeTalker/releases/download/v1.0.0/vocaset_stage2.pth.tar" \
-            -O "$CODETALKER_ST2" || \
-        echo "  WARNING: Auto-download failed. Place vocaset_stage2.pth.tar at: $CODETALKER_ST2"
-    fi
-    if [ ! -f "$CODETALKER_ST1" ]; then
-        echo "  Downloading CodeTalker VOCASET stage1 checkpoint..."
-        wget -q --show-progress \
-            "https://github.com/Doubiiu/CodeTalker/releases/download/v1.0.0/vocaset_stage1.pth.tar" \
-            -O "$CODETALKER_ST1" || true
-    fi
+
+    download_file() {
+        local url="$1" dst="$2" name="$3"
+        if [ -f "$dst" ]; then return 0; fi
+        echo "  Downloading $name..."
+        # Try wget, then curl, then Python urllib
+        wget -q --show-progress "$url" -O "$dst" 2>/dev/null && return 0
+        curl -L --progress-bar "$url" -o "$dst" 2>/dev/null && return 0
+        "$ELITE_PYTHON" - <<DLEOF
+import urllib.request, sys
+url = "$url"
+dst = "$dst"
+def progress(count, block, total):
+    pct = min(count*block*100//total, 100)
+    print(f"\r  {pct}%", end="", flush=True)
+urllib.request.urlretrieve(url, dst, reporthook=progress)
+print(f"\r  Downloaded: $name")
+DLEOF
+    }
+
+    download_file \
+        "https://github.com/Doubiiu/CodeTalker/releases/download/v1.0.0/vocaset_stage2.pth.tar" \
+        "$CODETALKER_ST2" "vocaset_stage2.pth.tar"
+    download_file \
+        "https://github.com/Doubiiu/CodeTalker/releases/download/v1.0.0/vocaset_stage1.pth.tar" \
+        "$CODETALKER_ST1" "vocaset_stage1.pth.tar"
 
     # Generate FLAME neutral template if missing
     FLAME_TEMPLATE_PKL="$CODETALKER_DIR/vocaset/FLAME_template.pkl"
@@ -197,13 +210,14 @@ flame = FlameHead(fc['n_shape'], fc['n_expr'],
 flame.eval()
 
 with torch.no_grad():
-    verts, _ = flame.forward(
+    out = flame.forward(
         shape=torch.zeros(1, fc['n_shape']), expr=torch.zeros(1, fc['n_expr']),
         rotation=torch.zeros(1, 3), neck=torch.zeros(1, 3),
         jaw=torch.zeros(1, 3), eyes=torch.zeros(1, 6),
         translation=torch.zeros(1, 3), zero_centered_at_root_node=True,
         return_landmarks=False, return_verts_cano=False,
         static_offset=None, dynamic_offset=None)
+    verts = out[0] if isinstance(out, (tuple, list)) else out
 
 template = verts[0].cpu().numpy()
 print(f"  FLAME template: {template.shape[0]} vertices")
@@ -372,13 +386,14 @@ for t in range(T):
     for step in range(100):
         opt.zero_grad()
         with torch.enable_grad():
-            vp, _ = flame.forward(
+            _out = flame.forward(
                 shape=pid_shape, expr=expr, rotation=rot_t,
                 neck=neck_t, jaw=jaw, eyes=eyes_t, translation=trans_t,
                 zero_centered_at_root_node=True,
                 return_landmarks=False, return_verts_cano=False,
                 static_offset=pid_stoffset, dynamic_offset=None,
             )
+            vp = _out[0] if isinstance(_out, (tuple, list)) else _out
             n = min(vp.shape[1], target.shape[1])
             loss = ((vp[:, :n] - target[:, :n]) ** 2).mean()
             loss.backward()
