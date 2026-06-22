@@ -95,8 +95,11 @@ else
     "$TTS_PYTHON" -m pip install "transformers==4.39.3" --quiet
     # PyTorch 2.6+ changed torch.load default to weights_only=True — patch TTS io.py
     TTS_IO="$HOME/miniconda3/envs/tts/lib/python3.10/site-packages/TTS/utils/io.py"
-    if grep -q 'torch.load(f, map_location=map_location)' "$TTS_IO" 2>/dev/null; then
-        sed -i 's/torch.load(f, map_location=map_location)/torch.load(f, map_location=map_location, weights_only=False)/g' "$TTS_IO"
+    if [ -f "$TTS_IO" ]; then
+        sed -i \
+            -e 's/torch\.load(f, map_location=map_location, \*\*kwargs)/torch.load(f, map_location=map_location, weights_only=False, **kwargs)/g' \
+            -e 's/torch\.load(f, map_location=map_location)/torch.load(f, map_location=map_location, weights_only=False)/g' \
+            "$TTS_IO"
         echo "  Patched TTS io.py for PyTorch 2.6+"
     fi
 
