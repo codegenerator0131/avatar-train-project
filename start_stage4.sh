@@ -204,9 +204,9 @@ with open("$ELITE_DIR/configs/3d_prior.yaml") as f:
     cfg = yaml.safe_load(f)
 fc = cfg['flame']
 
+# Use add_teeth=False so vertex count = 5023 (15069 floats) matching VOCASET checkpoint
 flame = FlameHead(fc['n_shape'], fc['n_expr'],
-    add_teeth=fc['add_teeth'], remove_lip_inside=fc['remove_lip_inside'],
-    face_clusters=("skin","hair","boundary","lips_tight","teeth","sclerae","irises"))
+    add_teeth=False, remove_lip_inside=False)
 flame.eval()
 
 with torch.no_grad():
@@ -261,16 +261,11 @@ one_hot = torch.zeros(1, NUM_TRAIN_SUBJECTS).to(device)
 one_hot[0, 0] = 1.0
 
 # Load CodeTalker model — build minimal config namespace
-import pickle as _pkl
-with open("$CODETALKER_DIR/vocaset/FLAME_template.pkl", 'rb') as _f:
-    _tpl = _pkl.load(_f, encoding='latin1')
-_V = len(_tpl['flame_neutral'])  # total floats = V*3
-
 class CFG:
     dataset = 'vocaset'
     arch = 'stage2'
-    in_dim = _V
-    vertice_dim = _V
+    in_dim = 15069
+    vertice_dim = 15069
     feature_dim = 1024
     hidden_size = 1024
     num_hidden_layers = 6
@@ -281,6 +276,10 @@ class CFG:
     zquant_dim = 64
     period = 30
     fps = 30
+    num_layers = 6
+    n_head = 4
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    autoencoder = 'stage1_vocaset'
     wav2vec2model_path = 'facebook/wav2vec2-base-960h'
     train_subjects = ('FaceTalk_170728_03272_TA FaceTalk_170904_00128_TA '
                       'FaceTalk_170725_00137_TA FaceTalk_170915_00223_TA '
