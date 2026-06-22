@@ -91,6 +91,8 @@ else
         "$TTS_PYTHON" -m pip install TTS==0.22.0
     fi
     "$TTS_PYTHON" -c "import TTS" 2>/dev/null || "$TTS_PYTHON" -m pip install TTS==0.22.0
+    # TTS==0.22.0 needs transformers<4.40 (BeamSearchScorer removed in 4.40+)
+    "$TTS_PYTHON" -m pip install "transformers==4.39.3" --quiet
 
     USE_GPU="True"
     [ "$GPU" = "-1" ] && USE_GPU="False"
