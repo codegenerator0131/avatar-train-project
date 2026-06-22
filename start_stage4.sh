@@ -95,7 +95,9 @@ else
     USE_GPU="True"
     [ "$GPU" = "-1" ] && USE_GPU="False"
 
-    "$TTS_PYTHON" - <<PYEOF
+    TTS_HOME="${TTS_HOME:-$HOME/.local/share/tts}" "$TTS_PYTHON" - <<PYEOF
+import os
+os.environ["COQUI_TOS_AGREED"] = "1"
 from TTS.api import TTS
 import torch
 
