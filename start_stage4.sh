@@ -192,8 +192,9 @@ else
     fi
 
     # Install CodeTalker deps into ELITE env
+    # transformers must be 4.27.4 — CodeTalker's wav2vec.py breaks with newer versions
     echo "  Installing CodeTalker dependencies..."
-    "$ELITE_PYTHON" -m pip install librosa==0.9.2 transformers==4.27.4 --quiet 2>/dev/null || true
+    "$ELITE_PYTHON" -m pip install librosa==0.9.2 "transformers==4.27.4" --quiet 2>/dev/null || true
 
     # Download VOCASET checkpoints if missing
     mkdir -p "$CODETALKER_DIR/vocaset"
