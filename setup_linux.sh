@@ -11,6 +11,37 @@ VENV_DIR="$SCRIPT_DIR/venv"
 # Helper: check if a dpkg package is installed
 pkg_installed() { dpkg -s "$1" &>/dev/null; }
 
+# ── Manual download check (run before anything else) ──────────────────────────
+MISSING_FILES=0
+check_file() {
+    local f="$1" label="$2" url="$3"
+    if [ ! -f "$f" ]; then
+        if [ "$MISSING_FILES" = "0" ]; then
+            echo ""
+            echo "  ┌─────────────────────────────────────────────────────────────┐"
+            echo "  │  MANUAL DOWNLOADS REQUIRED (one-time setup)                 │"
+            echo "  │  Register and download from the links below, then re-run.   │"
+            echo "  │  See DOWNLOADS.md for full instructions.                    │"
+            echo "  └─────────────────────────────────────────────────────────────┘"
+        fi
+        echo "  MISSING: $label"
+        echo "    → Place at: $f"
+        echo "    → Download: $url"
+        echo ""
+        MISSING_FILES=1
+    fi
+}
+check_file "$SCRIPT_DIR/data/flame/flame2023.pkl" \
+    "FLAME 2023 model (flame2023.pkl)" \
+    "https://flame.is.tue.mpg.de → register → Downloads → 'FLAME 2023 (revised eye region...)' (103 MB) → unzip → rename to flame2023.pkl"
+check_file "$SCRIPT_DIR/data/flame/FLAME_masks.pkl" \
+    "FLAME Vertex Masks (FLAME_masks.pkl)" \
+    "https://flame.is.tue.mpg.de → register → Downloads → 'FLAME Vertex Masks' (1.1 MB) → unzip → rename to FLAME_masks.pkl"
+if [ "$MISSING_FILES" = "1" ]; then
+    echo "  Place files in: $SCRIPT_DIR/data/flame/"
+    exit 1
+fi
+
 echo "== [1/4] System packages =="
 sudo apt update || true
 

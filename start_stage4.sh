@@ -15,6 +15,40 @@ echo "  Stage 4: Text → Speech → FLAME Animation"
 echo "================================================"
 echo ""
 
+# ── Manual download check ──────────────────────────────────────────────────────
+CODETALKER_ST1_CHECK="$SCRIPT_DIR/stage4/CodeTalker/vocaset/vocaset_stage1.pth.tar"
+CODETALKER_ST2_CHECK="$SCRIPT_DIR/stage4/CodeTalker/vocaset/vocaset_stage2.pth.tar"
+MISSING=0
+if [ -f "$CODETALKER_ST1_CHECK" ] && [ "$(stat -c%s "$CODETALKER_ST1_CHECK")" -lt 100000 ]; then rm -f "$CODETALKER_ST1_CHECK"; fi
+if [ -f "$CODETALKER_ST2_CHECK" ] && [ "$(stat -c%s "$CODETALKER_ST2_CHECK")" -lt 100000 ]; then rm -f "$CODETALKER_ST2_CHECK"; fi
+if [ ! -f "$CODETALKER_ST1_CHECK" ] || [ ! -f "$CODETALKER_ST2_CHECK" ]; then
+    echo "  ┌─────────────────────────────────────────────────────────┐"
+    echo "  │  MANUAL DOWNLOAD REQUIRED (one-time setup)              │"
+    echo "  │                                                         │"
+    echo "  │  CodeTalker checkpoints must be downloaded from         │"
+    echo "  │  Google Drive and placed at:                            │"
+    echo "  │                                                         │"
+    if [ ! -f "$CODETALKER_ST1_CHECK" ]; then
+    echo "  │  • vocaset_stage1.pth.tar                               │"
+    echo "  │    https://drive.google.com/file/d/1RszIMsxcWX7WPlaODqJvax8M_dnCIzk5│"
+    echo "  │    → stage4/CodeTalker/vocaset/vocaset_stage1.pth.tar  │"
+    fi
+    if [ ! -f "$CODETALKER_ST2_CHECK" ]; then
+    echo "  │  • vocaset_stage2.pth.tar                               │"
+    echo "  │    https://drive.google.com/file/d/1phqJ_6AqTJmMdSq-__KY6eVwN4J9iCGP│"
+    echo "  │    → stage4/CodeTalker/vocaset/vocaset_stage2.pth.tar  │"
+    fi
+    echo "  │                                                         │"
+    echo "  │  See DOWNLOADS.md for all required files.               │"
+    echo "  └─────────────────────────────────────────────────────────┘"
+    echo ""
+    MISSING=1
+fi
+if [ "$MISSING" = "1" ]; then
+    echo "  Attempting auto-download via gdown..."
+    mkdir -p "$SCRIPT_DIR/stage4/CodeTalker/vocaset"
+fi
+
 # ── Inputs ────────────────────────────────────────────────────────────────────
 DEFAULT_VIDEO=""
 for f in "$SCRIPT_DIR/data/capture/IMG_9625.mov" "$SCRIPT_DIR/data/capture/IMG_9625.MOV"; do
@@ -234,8 +268,8 @@ processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
 audio_input = np.squeeze(
     processor(speech_array, sampling_rate=16000, return_tensors="pt").input_values
 )
-# CodeTalker expects shape (1, 1, T_samples)
-audio_feature = torch.FloatTensor(audio_input).unsqueeze(0).unsqueeze(0).to(device)
+# CodeTalker expects shape (1, T_samples)
+audio_feature = torch.FloatTensor(audio_input).unsqueeze(0).to(device)
 print(f"  Audio shape: {audio_feature.shape}")
 
 # Load FLAME template
