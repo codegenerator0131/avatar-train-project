@@ -91,8 +91,13 @@ else
         "$TTS_PYTHON" -m pip install TTS==0.22.0
     fi
     "$TTS_PYTHON" -c "import TTS" 2>/dev/null || "$TTS_PYTHON" -m pip install TTS==0.22.0
-    # TTS==0.22.0 needs transformers<4.40 (BeamSearchScorer removed in 4.40+)
-    "$TTS_PYTHON" -m pip install "transformers==4.39.3" --quiet
+    # Pin deps for TTS==0.22.0 compatibility:
+    #   transformers<4.40  — BeamSearchScorer removed in 4.40+
+    #   torchaudio==2.1.0  — newer torchaudio requires torchcodec which TTS doesn't use
+    "$TTS_PYTHON" -m pip install \
+        "transformers==4.39.3" \
+        "torchaudio==2.1.0" --index-url https://download.pytorch.org/whl/cu121 \
+        --quiet
     # PyTorch 2.6+ changed torch.load default to weights_only=True — patch TTS io.py
     TTS_IO="$HOME/miniconda3/envs/tts/lib/python3.10/site-packages/TTS/utils/io.py"
     if [ -f "$TTS_IO" ]; then
