@@ -135,7 +135,12 @@ else
         exit 1
     fi
     echo "  Using system CUDA for nvcc: $SYS_CUDA"
-    CUDA_HOME="$SYS_CUDA" CC=gcc-11 CXX=g++-11 \
+    # Symlink nvcc into ELITE env so build tools find it
+    mkdir -p "$ELITE_ENV_DIR/bin"
+    ln -sf "$SYS_CUDA/bin/nvcc" "$ELITE_ENV_DIR/bin/nvcc"
+    export PATH="$ELITE_ENV_DIR/bin:$SYS_CUDA/bin:$PATH"
+    export CUDA_HOME="$SYS_CUDA"
+    CC=gcc-11 CXX=g++-11 CUDA_HOME="$SYS_CUDA" \
         "$ELITE_PIP" install --no-build-isolation \
         git+https://github.com/hbb1/diff-surfel-rasterization.git
 
