@@ -82,6 +82,11 @@ ELITE_CONDA="$CONDA_DIR/bin/conda"
 ELITE_PIP="$CONDA_DIR/envs/ELITE/bin/pip"
 ELITE_PYTHON="$CONDA_DIR/envs/ELITE/bin/python"
 
+# Ensure pip exists in ELITE env before using it
+if [ ! -f "$ELITE_PIP" ] && conda env list | grep -q "^ELITE "; then
+    "$ELITE_CONDA" install -y -n ELITE pip
+fi
+
 if [ -f "$ELITE_PYTHON" ] && "$ELITE_PYTHON" -c "import torch; import diff_surfel_rasterization; import vhap" &>/dev/null 2>&1; then
     echo "  [skip] ELITE env already fully installed"
 else
