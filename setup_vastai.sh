@@ -122,8 +122,20 @@ else
         https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu121_pyt210/pytorch3d-0.7.5-cp310-cp310-linux_x86_64.whl
 
     # diff-surfel-rasterization
-    "$ELITE_CONDA" install -y --prefix "$ELITE_ENV_DIR" -c "nvidia/label/cuda-12.1.1" cuda-toolkit ninja cmake
-    CUDA_HOME="$CONDA_DIR/envs/ELITE" CC=gcc-11 CXX=g++-11 \
+    # Use system CUDA for nvcc (Vast.ai has CUDA at /usr/local/cuda)
+    SYS_CUDA=""
+    for candidate in /usr/local/cuda /usr/local/cuda-12.1 /usr/local/cuda-12.4 /usr/local/cuda-13.0; do
+        if [ -f "$candidate/bin/nvcc" ]; then
+            SYS_CUDA="$candidate"
+            break
+        fi
+    done
+    if [ -z "$SYS_CUDA" ]; then
+        echo "ERROR: nvcc not found in system CUDA paths"
+        exit 1
+    fi
+    echo "  Using system CUDA for nvcc: $SYS_CUDA"
+    CUDA_HOME="$SYS_CUDA" CC=gcc-11 CXX=g++-11 \
         "$ELITE_PIP" install --no-build-isolation \
         git+https://github.com/hbb1/diff-surfel-rasterization.git
 
