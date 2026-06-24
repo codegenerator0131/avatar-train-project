@@ -114,7 +114,7 @@ if [ "$CUDA_MAJOR" -ge 13 ] || { [ "$CUDA_MAJOR" -eq 12 ] && [ "$CUDA_MINOR" -ge
     TORCH_CUDA="cu126"
     TORCH_VER="2.6.0"
     TORCHVISION_VER="0.21.0"
-    PYTORCH3D_WHEEL="https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu126_pyt260/pytorch3d-0.7.8-cp310-cp310-linux_x86_64.whl"
+    PYTORCH3D_WHEEL=""  # no pre-built wheel for cu126 yet — install from source instead
 else
     TORCH_CUDA="cu121"
     TORCH_VER="2.1.0"
@@ -150,9 +150,16 @@ else
     "$ELITE_PIP" install torch==$TORCH_VER torchvision==$TORCHVISION_VER \
         --index-url https://download.pytorch.org/whl/$TORCH_CUDA
 
-    # pytorch3d pre-built wheel
-    "$ELITE_PIP" install "$PYTORCH3D_WHEEL" || \
-        echo "  WARNING: pytorch3d wheel not found, skipping"
+    # pytorch3d — pre-built wheel for cu121, build from source for cu126
+    if [ -n "$PYTORCH3D_WHEEL" ]; then
+        "$ELITE_PIP" install "$PYTORCH3D_WHEEL" || \
+            echo "  WARNING: pytorch3d wheel failed, trying source..."  \
+            FORCE_CUDA=1 "$ELITE_PIP" install --no-build-isolation "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.8"
+    else
+        echo "  Building pytorch3d from source (cu126)..."
+        FORCE_CUDA=1 CUDA_HOME="$SYS_CUDA" CC=gcc-11 CXX=g++-11 \
+            "$ELITE_PIP" install --no-build-isolation "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.8"
+    fi
 
     # Symlink nvcc into ELITE env bin so build tools find it
     mkdir -p "$ELITE_ENV_DIR/bin"
