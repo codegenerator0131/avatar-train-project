@@ -79,26 +79,31 @@ echo ""
 echo "== [3/4] ELITE conda env =="
 ELITE_DIR="$SCRIPT_DIR/elite"
 ELITE_CONDA="$CONDA_DIR/bin/conda"
-ELITE_PIP="$CONDA_DIR/envs/ELITE/bin/pip"
-ELITE_PYTHON="$CONDA_DIR/envs/ELITE/bin/python"
 
-# Ensure pip exists in ELITE env before using it
-if [ ! -f "$ELITE_PIP" ] && conda env list | grep -q "^ELITE "; then
-    "$ELITE_CONDA" install -y -n ELITE pip
+# Vast.ai stores envs in /venv/<name> not $CONDA_DIR/envs/<name>
+# Detect the correct path
+if [ -d "/venv/ELITE" ]; then
+    ELITE_ENV_DIR="/venv/ELITE"
+elif [ -d "$CONDA_DIR/envs/ELITE" ]; then
+    ELITE_ENV_DIR="$CONDA_DIR/envs/ELITE"
+else
+    ELITE_ENV_DIR="$CONDA_DIR/envs/ELITE"
 fi
+ELITE_PIP="$ELITE_ENV_DIR/bin/pip"
+ELITE_PYTHON="$ELITE_ENV_DIR/bin/python"
 
 if [ -f "$ELITE_PYTHON" ] && "$ELITE_PYTHON" -c "import torch; import diff_surfel_rasterization; import vhap" &>/dev/null 2>&1; then
     echo "  [skip] ELITE env already fully installed"
 else
-    if ! conda env list | grep -q "^ELITE "; then
+    if [ ! -f "$ELITE_PYTHON" ]; then
         echo "  Creating ELITE conda env (Python 3.10)..."
-        "$ELITE_CONDA" create --name ELITE -y python=3.10
+        "$ELITE_CONDA" create --prefix "$ELITE_ENV_DIR" -y python=3.10
     fi
 
     export CC=/usr/bin/gcc-11
     export CXX=/usr/bin/g++-11
 
-    "$ELITE_CONDA" install -y -n ELITE pip
+    "$ELITE_CONDA" install -y --prefix "$ELITE_ENV_DIR" pip
     "$ELITE_PIP" install --upgrade pip "setuptools==69.5.1" wheel hatchling editables
 
     # ELITE requirements (skip chumpy + torch — handled separately)
@@ -117,7 +122,7 @@ else
         https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu121_pyt210/pytorch3d-0.7.5-cp310-cp310-linux_x86_64.whl
 
     # diff-surfel-rasterization
-    "$ELITE_CONDA" install -y -n ELITE -c "nvidia/label/cuda-12.1.1" cuda-toolkit ninja cmake
+    "$ELITE_CONDA" install -y --prefix "$ELITE_ENV_DIR" -c "nvidia/label/cuda-12.1.1" cuda-toolkit ninja cmake
     CUDA_HOME="$CONDA_DIR/envs/ELITE" CC=gcc-11 CXX=g++-11 \
         "$ELITE_PIP" install --no-build-isolation \
         git+https://github.com/hbb1/diff-surfel-rasterization.git
@@ -137,14 +142,20 @@ fi
 # ── TTS conda env ─────────────────────────────────────────────────────────────
 echo ""
 echo "== [4/4] TTS conda env (XTTS v2) =="
-TTS_PYTHON="$CONDA_DIR/envs/tts/bin/python"
-TTS_PIP="$CONDA_DIR/envs/tts/bin/pip"
+# Detect TTS env path
+if [ -d "/venv/tts" ]; then
+    TTS_ENV_DIR="/venv/tts"
+else
+    TTS_ENV_DIR="$CONDA_DIR/envs/tts"
+fi
+TTS_PYTHON="$TTS_ENV_DIR/bin/python"
+TTS_PIP="$TTS_ENV_DIR/bin/pip"
 
 if [ -f "$TTS_PYTHON" ] && "$TTS_PYTHON" -c "import TTS" &>/dev/null 2>&1; then
     echo "  [skip] tts env already installed"
 else
-    if ! conda env list | grep -q "^tts "; then
-        "$ELITE_CONDA" create --name tts -y python=3.10
+    if [ ! -f "$TTS_PYTHON" ]; then
+        "$ELITE_CONDA" create --prefix "$TTS_ENV_DIR" -y python=3.10
     fi
     "$TTS_PIP" install --upgrade pip
     "$TTS_PIP" install transformers==4.39.3
