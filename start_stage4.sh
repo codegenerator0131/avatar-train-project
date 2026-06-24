@@ -454,14 +454,14 @@ for t in range(T):
             opt.step()
 
     np.savez(f"$FLAME_PARAMS_DIR/{t:05d}.npz",
-        shape        = pid['shape'][0:1],
+        shape        = pid_shape.cpu().numpy(),           # (1, n_shape) e.g. (1, 300)
         rotation     = pid_rot.reshape(1, -1),
         translation  = pid_trans.reshape(1, -1),
         neck_pose    = pid_neck.reshape(1, -1),
         jaw_pose     = jaw.detach().cpu().numpy().reshape(1, -1),
         eyes_pose    = pid_eyes.reshape(1, -1),
         expr         = expr.detach().cpu().numpy().reshape(1, -1),
-        static_offset= pid['static_offset'][0:1],
+        static_offset= pid_stoffset.cpu().numpy(),        # (1, V, 3) matching FLAME vertices
     )
 
     if (t + 1) % 30 == 0 or t == T - 1:
