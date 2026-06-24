@@ -92,6 +92,37 @@ fi
 ELITE_PIP="$ELITE_ENV_DIR/bin/pip"
 ELITE_PYTHON="$ELITE_ENV_DIR/bin/python"
 
+# Find system nvcc FIRST — needed for both torch selection and build
+SYS_CUDA=""
+for candidate in /usr/local/cuda /usr/local/cuda-13.0 /usr/local/cuda-12.8 /usr/local/cuda-12.4 /usr/local/cuda-12.1; do
+    if [ -f "$candidate/bin/nvcc" ]; then
+        SYS_CUDA="$candidate"
+        break
+    fi
+done
+if [ -z "$SYS_CUDA" ]; then
+    echo "ERROR: nvcc not found"
+    exit 1
+fi
+echo "  nvcc found at: $SYS_CUDA"
+
+# Detect CUDA version
+NVCC_VER=$("$SYS_CUDA/bin/nvcc" --version | grep -oP 'release \K[0-9]+\.[0-9]+' || echo "12.1")
+CUDA_MAJOR=$(echo "$NVCC_VER" | cut -d. -f1)
+CUDA_MINOR=$(echo "$NVCC_VER" | cut -d. -f2)
+if [ "$CUDA_MAJOR" -ge 13 ] || { [ "$CUDA_MAJOR" -eq 12 ] && [ "$CUDA_MINOR" -ge 6 ]; }; then
+    TORCH_CUDA="cu126"
+    TORCH_VER="2.6.0"
+    TORCHVISION_VER="0.21.0"
+    PYTORCH3D_WHEEL="https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu126_pyt260/pytorch3d-0.7.8-cp310-cp310-linux_x86_64.whl"
+else
+    TORCH_CUDA="cu121"
+    TORCH_VER="2.1.0"
+    TORCHVISION_VER="0.16.0"
+    PYTORCH3D_WHEEL="https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu121_pyt210/pytorch3d-0.7.5-cp310-cp310-linux_x86_64.whl"
+fi
+echo "  CUDA $NVCC_VER → will use torch==$TORCH_VER+$TORCH_CUDA"
+
 if [ -f "$ELITE_PYTHON" ] && "$ELITE_PYTHON" -c "import torch; import diff_surfel_rasterization; import vhap" &>/dev/null 2>&1; then
     echo "  [skip] ELITE env already fully installed"
 else
@@ -102,6 +133,8 @@ else
 
     export CC=/usr/bin/gcc-11
     export CXX=/usr/bin/g++-11
+    export CUDA_HOME="$SYS_CUDA"
+    export PATH="$SYS_CUDA/bin:$PATH"
 
     "$ELITE_CONDA" install -y --prefix "$ELITE_ENV_DIR" pip
     "$ELITE_PIP" install --upgrade pip "setuptools==69.5.1" wheel hatchling editables
@@ -113,49 +146,21 @@ else
 
     "$ELITE_PIP" install --no-build-isolation git+https://github.com/mattloper/chumpy.git
 
-    # Detect CUDA version and pick matching PyTorch wheels
-    NVCC_VER=$("$SYS_CUDA/bin/nvcc" --version | grep -oP 'release \K[0-9]+\.[0-9]+' || echo "")
-    CUDA_MAJOR=$(echo "$NVCC_VER" | cut -d. -f1)
-    CUDA_MINOR=$(echo "$NVCC_VER" | cut -d. -f2)
-    if [ "$CUDA_MAJOR" -ge 13 ] || { [ "$CUDA_MAJOR" -eq 12 ] && [ "$CUDA_MINOR" -ge 6 ]; }; then
-        TORCH_CUDA="cu126"
-        TORCH_VER="2.6.0"
-        TORCHVISION_VER="0.21.0"
-        PYTORCH3D_WHEEL="https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu126_pyt260/pytorch3d-0.7.8-cp310-cp310-linux_x86_64.whl"
-    else
-        TORCH_CUDA="cu121"
-        TORCH_VER="2.1.0"
-        TORCHVISION_VER="0.16.0"
-        PYTORCH3D_WHEEL="https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu121_pyt210/pytorch3d-0.7.5-cp310-cp310-linux_x86_64.whl"
-    fi
-    echo "  CUDA $NVCC_VER detected — installing torch==$TORCH_VER+$TORCH_CUDA"
+    echo "  Installing torch==$TORCH_VER+$TORCH_CUDA..."
     "$ELITE_PIP" install torch==$TORCH_VER torchvision==$TORCHVISION_VER \
         --index-url https://download.pytorch.org/whl/$TORCH_CUDA
 
     # pytorch3d pre-built wheel
     "$ELITE_PIP" install "$PYTORCH3D_WHEEL" || \
-        echo "  WARNING: pytorch3d wheel not found for this CUDA version, skipping"
+        echo "  WARNING: pytorch3d wheel not found, skipping"
 
-    # diff-surfel-rasterization
-    # Use system CUDA for nvcc (Vast.ai has CUDA at /usr/local/cuda)
-    SYS_CUDA=""
-    for candidate in /usr/local/cuda /usr/local/cuda-12.1 /usr/local/cuda-12.4 /usr/local/cuda-13.0; do
-        if [ -f "$candidate/bin/nvcc" ]; then
-            SYS_CUDA="$candidate"
-            break
-        fi
-    done
-    if [ -z "$SYS_CUDA" ]; then
-        echo "ERROR: nvcc not found in system CUDA paths"
-        exit 1
-    fi
-    echo "  Using system CUDA for nvcc: $SYS_CUDA"
-    # Symlink nvcc into ELITE env so build tools find it
+    # Symlink nvcc into ELITE env bin so build tools find it
     mkdir -p "$ELITE_ENV_DIR/bin"
     ln -sf "$SYS_CUDA/bin/nvcc" "$ELITE_ENV_DIR/bin/nvcc"
-    export PATH="$ELITE_ENV_DIR/bin:$SYS_CUDA/bin:$PATH"
-    export CUDA_HOME="$SYS_CUDA"
-    CC=gcc-11 CXX=g++-11 CUDA_HOME="$SYS_CUDA" \
+
+    # diff-surfel-rasterization
+    echo "  Building diff_surfel_rasterization with CUDA_HOME=$SYS_CUDA..."
+    CUDA_HOME="$SYS_CUDA" CC=gcc-11 CXX=g++-11 \
         "$ELITE_PIP" install --no-build-isolation \
         git+https://github.com/hbb1/diff-surfel-rasterization.git
 
