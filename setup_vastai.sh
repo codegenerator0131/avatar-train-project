@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Avatar pipeline: Vast.ai setup (PyTorch Vast template, root user, miniforge pre-installed)
-# Run inside the Vast.ai instance after uploading project files.
-# Assumes: miniforge3 at /opt/miniforge3, CUDA 12.x driver, root user
+# Avatar pipeline: Vast.ai setup
+# Works on any CUDA driver version — uses conda cuda-toolkit 12.1 for compilation
+# Same approach as the working Linux server setup.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ELITE_DIR="$SCRIPT_DIR/elite"
 
 echo "================================================"
 echo "  Avatar Pipeline — Vast.ai Setup"
@@ -12,169 +13,88 @@ echo "================================================"
 echo ""
 
 # ── FLAME file check ──────────────────────────────────────────────────────────
-MISSING_FILES=0
-check_file() {
-    local f="$1" label="$2"
-    if [ ! -f "$f" ]; then
-        echo "  MISSING: $label → $f"
-        MISSING_FILES=1
-    fi
-}
-check_file "$SCRIPT_DIR/data/flame/flame2023.pkl"  "FLAME 2023 model"
-check_file "$SCRIPT_DIR/data/flame/FLAME_masks.pkl" "FLAME Vertex Masks"
-if [ "$MISSING_FILES" = "1" ]; then
-    echo ""
-    echo "  Upload FLAME files first (see DOWNLOADS.md), then re-run."
-    exit 1
-fi
+for f in "$SCRIPT_DIR/data/flame/flame2023.pkl" "$SCRIPT_DIR/data/flame/FLAME_masks.pkl"; do
+    [ -f "$f" ] || { echo "MISSING: $f — upload FLAME files first"; exit 1; }
+done
 echo "  [ok] FLAME files present"
 
-# ── Use existing miniforge conda ──────────────────────────────────────────────
+# ── conda ─────────────────────────────────────────────────────────────────────
 CONDA_DIR="/opt/miniforge3"
-if [ ! -f "$CONDA_DIR/bin/conda" ]; then
-    echo "ERROR: conda not found at $CONDA_DIR"
-    echo "This script is for Vast.ai PyTorch template only."
-    exit 1
-fi
+[ -f "$CONDA_DIR/bin/conda" ] || { echo "ERROR: conda not found at $CONDA_DIR"; exit 1; }
 source "$CONDA_DIR/etc/profile.d/conda.sh"
-echo "  [ok] conda found at $CONDA_DIR"
+CONDA="$CONDA_DIR/bin/conda"
+echo "  [ok] conda at $CONDA_DIR"
 
-# ── System packages (minimal — most already in Vast.ai image) ─────────────────
+# ── system packages ───────────────────────────────────────────────────────────
 echo ""
-echo "== [1/4] System packages =="
+echo "== [1/3] System packages =="
 apt-get update -qq || true
-PKGS=(build-essential git git-lfs ffmpeg ninja-build cmake pkg-config wget unzip gcc-11 g++-11)
-TO_INSTALL=()
-for p in "${PKGS[@]}"; do
-    if dpkg -s "$p" &>/dev/null; then
-        echo "  [skip] $p"
-    else
-        TO_INSTALL+=("$p")
-    fi
+for p in build-essential git ffmpeg ninja-build cmake gcc-11 g++-11; do
+    dpkg -s "$p" &>/dev/null && echo "  [skip] $p" || apt-get install -y "$p"
 done
-if [ ${#TO_INSTALL[@]} -gt 0 ]; then
-    apt-get install -y "${TO_INSTALL[@]}"
-fi
 
-# ── CUDA PATH ─────────────────────────────────────────────────────────────────
+# ── ELITE env ─────────────────────────────────────────────────────────────────
 echo ""
-echo "== [2/4] CUDA PATH =="
-CUDA_PATH=""
-for candidate in /usr/local/cuda /usr/local/cuda-13.0 /usr/local/cuda-12.8 /usr/local/cuda-12.4 /usr/local/cuda-12.1; do
-    if [ -d "$candidate/bin" ]; then
-        CUDA_PATH="$candidate"
-        break
-    fi
-done
-if [ -n "$CUDA_PATH" ]; then
-    export PATH="$CUDA_PATH/bin:$PATH"
-    export LD_LIBRARY_PATH="$CUDA_PATH/lib64:${LD_LIBRARY_PATH:-}"
-    echo "  [ok] CUDA at $CUDA_PATH"
-else
-    echo "  WARNING: CUDA dir not found, nvcc may not work"
-fi
+echo "== [2/3] ELITE conda env =="
 
-# ── ELITE conda env ───────────────────────────────────────────────────────────
-echo ""
-echo "== [3/4] ELITE conda env =="
-ELITE_DIR="$SCRIPT_DIR/elite"
-ELITE_CONDA="$CONDA_DIR/bin/conda"
-
-# Vast.ai stores envs in /venv/<name> not $CONDA_DIR/envs/<name>
-# Detect the correct path
+# Detect env path — Vast.ai uses /venv/<name>
 if [ -d "/venv/ELITE" ]; then
-    ELITE_ENV_DIR="/venv/ELITE"
-elif [ -d "$CONDA_DIR/envs/ELITE" ]; then
-    ELITE_ENV_DIR="$CONDA_DIR/envs/ELITE"
+    ELITE_ENV="/venv/ELITE"
 else
-    ELITE_ENV_DIR="$CONDA_DIR/envs/ELITE"
+    ELITE_ENV="$CONDA_DIR/envs/ELITE"
 fi
-ELITE_PIP="$ELITE_ENV_DIR/bin/pip"
-ELITE_PYTHON="$ELITE_ENV_DIR/bin/python"
+ELITE_PIP="$ELITE_ENV/bin/pip"
+ELITE_PYTHON="$ELITE_ENV/bin/python"
 
-# Find system nvcc FIRST — needed for both torch selection and build
-SYS_CUDA=""
-for candidate in /usr/local/cuda /usr/local/cuda-13.0 /usr/local/cuda-12.8 /usr/local/cuda-12.4 /usr/local/cuda-12.1; do
-    if [ -f "$candidate/bin/nvcc" ]; then
-        SYS_CUDA="$candidate"
-        break
-    fi
-done
-if [ -z "$SYS_CUDA" ]; then
-    echo "ERROR: nvcc not found"
-    exit 1
-fi
-echo "  nvcc found at: $SYS_CUDA"
-
-# Detect CUDA version
-NVCC_VER=$("$SYS_CUDA/bin/nvcc" --version | grep -oP 'release \K[0-9]+\.[0-9]+' || echo "12.1")
-CUDA_MAJOR=$(echo "$NVCC_VER" | cut -d. -f1)
-CUDA_MINOR=$(echo "$NVCC_VER" | cut -d. -f2)
-if [ "$CUDA_MAJOR" -ge 13 ] || { [ "$CUDA_MAJOR" -eq 12 ] && [ "$CUDA_MINOR" -ge 6 ]; }; then
-    TORCH_CUDA="cu126"
-    TORCH_VER="2.6.0"
-    TORCHVISION_VER="0.21.0"
-    PYTORCH3D_WHEEL=""  # no pre-built wheel for cu126 yet — install from source instead
+if "$ELITE_PYTHON" -c "import torch; import diff_surfel_rasterization; import vhap" &>/dev/null 2>&1; then
+    echo "  [skip] ELITE env already complete"
 else
-    TORCH_CUDA="cu121"
-    TORCH_VER="2.1.0"
-    TORCHVISION_VER="0.16.0"
-    PYTORCH3D_WHEEL="https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu121_pyt210/pytorch3d-0.7.5-cp310-cp310-linux_x86_64.whl"
-fi
-echo "  CUDA $NVCC_VER → will use torch==$TORCH_VER+$TORCH_CUDA"
+    # Create env if missing
+    [ -f "$ELITE_PYTHON" ] || "$CONDA" create --prefix "$ELITE_ENV" -y python=3.10
 
-if [ -f "$ELITE_PYTHON" ] && "$ELITE_PYTHON" -c "import torch; import diff_surfel_rasterization; import vhap" &>/dev/null 2>&1; then
-    echo "  [skip] ELITE env already fully installed"
-else
-    if [ ! -f "$ELITE_PYTHON" ]; then
-        echo "  Creating ELITE conda env (Python 3.10)..."
-        "$ELITE_CONDA" create --prefix "$ELITE_ENV_DIR" -y python=3.10
-    fi
+    # Install cuda-toolkit 12.1 via conda INTO the env — same as working server
+    echo "  Installing cuda-toolkit 12.1 into ELITE env..."
+    "$CONDA" install -y --prefix "$ELITE_ENV" -c "nvidia/label/cuda-12.1.1" cuda-toolkit ninja cmake
 
+    # Set CUDA_HOME to the env (has nvcc 12.1 now)
+    export CUDA_HOME="$ELITE_ENV"
+    export PATH="$ELITE_ENV/bin:$PATH"
     export CC=/usr/bin/gcc-11
     export CXX=/usr/bin/g++-11
-    export CUDA_HOME="$SYS_CUDA"
-    export PATH="$SYS_CUDA/bin:$PATH"
 
-    "$ELITE_CONDA" install -y --prefix "$ELITE_ENV_DIR" pip
+    # Verify nvcc
+    "$ELITE_ENV/bin/nvcc" --version
+
+    # pip + base tools
+    "$CONDA" install -y --prefix "$ELITE_ENV" pip
     "$ELITE_PIP" install --upgrade pip "setuptools==69.5.1" wheel hatchling editables
 
-    # ELITE requirements (skip chumpy + torch — handled separately)
+    # ELITE requirements (skip torch/chumpy/triton)
     grep -v "^chumpy\|^torch=\|^torchvision=\|^torchaudio=\|^triton=" \
-        "$ELITE_DIR/requirements.txt" > /tmp/elite_req.txt || true
+        "$ELITE_DIR/requirements.txt" > /tmp/elite_req.txt
     "$ELITE_PIP" install -r /tmp/elite_req.txt
 
     "$ELITE_PIP" install --no-build-isolation git+https://github.com/mattloper/chumpy.git
 
-    echo "  Installing torch==$TORCH_VER+$TORCH_CUDA..."
-    "$ELITE_PIP" install torch==$TORCH_VER torchvision==$TORCHVISION_VER \
-        --index-url https://download.pytorch.org/whl/$TORCH_CUDA
+    # PyTorch cu121 — matches cuda-toolkit 12.1 in the env
+    echo "  Installing torch 2.1.0+cu121..."
+    "$ELITE_PIP" install torch==2.1.0 torchvision==0.16.0 \
+        --index-url https://download.pytorch.org/whl/cu121
 
-    # pytorch3d — pre-built wheel for cu121, build from source for cu126
-    if [ -n "$PYTORCH3D_WHEEL" ]; then
-        "$ELITE_PIP" install "$PYTORCH3D_WHEEL" || \
-            echo "  WARNING: pytorch3d wheel failed, trying source..."  \
-            FORCE_CUDA=1 "$ELITE_PIP" install --no-build-isolation "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.8"
-    else
-        echo "  Building pytorch3d from source (cu126)..."
-        FORCE_CUDA=1 CUDA_HOME="$SYS_CUDA" CC=gcc-11 CXX=g++-11 \
-            "$ELITE_PIP" install --no-build-isolation "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.8"
-    fi
+    # pytorch3d pre-built wheel (py310 + cu121 + pyt210)
+    "$ELITE_PIP" install \
+        https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu121_pyt210/pytorch3d-0.7.5-cp310-cp310-linux_x86_64.whl
 
-    # Symlink nvcc into ELITE env bin so build tools find it
-    mkdir -p "$ELITE_ENV_DIR/bin"
-    ln -sf "$SYS_CUDA/bin/nvcc" "$ELITE_ENV_DIR/bin/nvcc"
-
-    # diff-surfel-rasterization
-    echo "  Building diff_surfel_rasterization with CUDA_HOME=$SYS_CUDA..."
-    CUDA_HOME="$SYS_CUDA" CC=gcc-11 CXX=g++-11 \
+    # diff-surfel-rasterization — compiled against cu121 in env
+    echo "  Building diff_surfel_rasterization..."
+    CUDA_HOME="$ELITE_ENV" CC=gcc-11 CXX=g++-11 \
         "$ELITE_PIP" install --no-build-isolation \
         git+https://github.com/hbb1/diff-surfel-rasterization.git
 
-    # VHAP (needed by ELITE for FLAME)
+    # VHAP
     "$ELITE_PIP" install --no-build-isolation "$ELITE_DIR/vhap/" --no-deps
 
-    # Fix conda path in configs
+    # Fix paths.sh
     sed -i "s|anaconda3/etc/profile.d/conda.sh|miniforge3/etc/profile.d/conda.sh|g" \
         "$ELITE_DIR/configs/paths.sh" 2>/dev/null || true
     sed -i "s|miniconda3/etc/profile.d/conda.sh|miniforge3/etc/profile.d/conda.sh|g" \
@@ -183,73 +103,43 @@ else
     echo "  ELITE env ready."
 fi
 
-# ── TTS conda env ─────────────────────────────────────────────────────────────
+# ── TTS env ───────────────────────────────────────────────────────────────────
 echo ""
-echo "== [4/4] TTS conda env (XTTS v2) =="
-# Detect TTS env path
-if [ -d "/venv/tts" ]; then
-    TTS_ENV_DIR="/venv/tts"
-else
-    TTS_ENV_DIR="$CONDA_DIR/envs/tts"
-fi
-TTS_PYTHON="$TTS_ENV_DIR/bin/python"
-TTS_PIP="$TTS_ENV_DIR/bin/pip"
+echo "== [3/3] TTS conda env =="
+if [ -d "/venv/tts" ]; then TTS_ENV="/venv/tts"; else TTS_ENV="$CONDA_DIR/envs/tts"; fi
+TTS_PIP="$TTS_ENV/bin/pip"
+TTS_PYTHON="$TTS_ENV/bin/python"
 
-if [ -f "$TTS_PYTHON" ] && "$TTS_PYTHON" -c "import TTS" &>/dev/null 2>&1; then
-    echo "  [skip] tts env already installed"
+if "$TTS_PYTHON" -c "import TTS" &>/dev/null 2>&1; then
+    echo "  [skip] tts env already complete"
 else
-    if [ ! -f "$TTS_PYTHON" ]; then
-        "$ELITE_CONDA" create --prefix "$TTS_ENV_DIR" -y python=3.10
-    fi
+    [ -f "$TTS_PYTHON" ] || "$CONDA" create --prefix "$TTS_ENV" -y python=3.10
     "$TTS_PIP" install --upgrade pip
     "$TTS_PIP" install transformers==4.39.3
-    "$TTS_PIP" install torch==2.1.0 --index-url https://download.pytorch.org/whl/cu121
-    "$TTS_PIP" install torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu121
+    "$TTS_PIP" install torch==2.1.0 torchaudio==2.1.0 \
+        --index-url https://download.pytorch.org/whl/cu121
     "$TTS_PIP" install TTS gdown
     echo "  tts env ready."
 fi
 
-# ── FLAME asset symlinks ──────────────────────────────────────────────────────
+# ── symlinks ──────────────────────────────────────────────────────────────────
 mkdir -p "$ELITE_DIR/asset/flame"
 ln -sf "$SCRIPT_DIR/data/flame/flame2023.pkl"  "$ELITE_DIR/asset/flame/flame2023.pkl"
 ln -sf "$SCRIPT_DIR/data/flame/FLAME_masks.pkl" "$ELITE_DIR/asset/flame/FLAME_masks.pkl"
-echo "  FLAME assets symlinked."
 
-# ── Processed data symlinks ───────────────────────────────────────────────────
-echo ""
-echo "== Fixing data symlinks =="
 PROCESSED_SRC="$SCRIPT_DIR/data/processed/IMG_9625_nerf"
 mkdir -p "$ELITE_DIR/data/source/processed" "$ELITE_DIR/data/source/tracked"
-
 if [ -d "$PROCESSED_SRC" ]; then
     ln -sfn "$PROCESSED_SRC" \
         "$ELITE_DIR/data/source/processed/IMG_9625_whiteBg_staticOffset_maskBelowLine"
     ln -sfn "$PROCESSED_SRC" \
         "$ELITE_DIR/data/source/tracked/IMG_9625_whiteBg_staticOffset"
-    echo "  [ok] Data symlinks created"
+    echo "  [ok] data symlinks created"
 else
-    echo "  WARNING: $PROCESSED_SRC not found — rsync may not be complete"
-fi
-
-# ── ELITE checkpoints ─────────────────────────────────────────────────────────
-mkdir -p "$ELITE_DIR/checkpoints"
-if [ -f "$ELITE_DIR/checkpoints/3d_prior.pth" ] && [ -f "$ELITE_DIR/checkpoints/2d_prior.pth" ]; then
-    echo "  [ok] ELITE checkpoints present"
-else
-    echo ""
-    echo "  ACTION REQUIRED: ELITE checkpoints missing."
-    echo "  Upload from your server:"
-    echo "    rsync -avz --progress -e 'ssh -p PORT' \\"
-    echo "      ~/Documents/avatar-train-project/elite/checkpoints/ \\"
-    echo "      root@HOST:/workspace/avatar-train-project/elite/checkpoints/"
-    echo ""
+    echo "  WARNING: $PROCESSED_SRC not found"
 fi
 
 echo ""
 echo "================================================"
-echo "  Setup complete!"
+echo "  Setup complete! Run: bash start_stage5.sh"
 echo "================================================"
-echo ""
-echo "  Run Stage 5:"
-echo "    bash start_stage5.sh"
-echo ""
