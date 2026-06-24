@@ -113,13 +113,28 @@ else
 
     "$ELITE_PIP" install --no-build-isolation git+https://github.com/mattloper/chumpy.git
 
-    # PyTorch cu121
-    "$ELITE_PIP" install torch==2.1.0 torchvision==0.16.0 \
-        --index-url https://download.pytorch.org/whl/cu121
+    # Detect CUDA version and pick matching PyTorch wheels
+    NVCC_VER=$("$SYS_CUDA/bin/nvcc" --version | grep -oP 'release \K[0-9]+\.[0-9]+' || echo "")
+    CUDA_MAJOR=$(echo "$NVCC_VER" | cut -d. -f1)
+    CUDA_MINOR=$(echo "$NVCC_VER" | cut -d. -f2)
+    if [ "$CUDA_MAJOR" -ge 13 ] || { [ "$CUDA_MAJOR" -eq 12 ] && [ "$CUDA_MINOR" -ge 6 ]; }; then
+        TORCH_CUDA="cu126"
+        TORCH_VER="2.6.0"
+        TORCHVISION_VER="0.21.0"
+        PYTORCH3D_WHEEL="https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu126_pyt260/pytorch3d-0.7.8-cp310-cp310-linux_x86_64.whl"
+    else
+        TORCH_CUDA="cu121"
+        TORCH_VER="2.1.0"
+        TORCHVISION_VER="0.16.0"
+        PYTORCH3D_WHEEL="https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu121_pyt210/pytorch3d-0.7.5-cp310-cp310-linux_x86_64.whl"
+    fi
+    echo "  CUDA $NVCC_VER detected — installing torch==$TORCH_VER+$TORCH_CUDA"
+    "$ELITE_PIP" install torch==$TORCH_VER torchvision==$TORCHVISION_VER \
+        --index-url https://download.pytorch.org/whl/$TORCH_CUDA
 
     # pytorch3d pre-built wheel
-    "$ELITE_PIP" install \
-        https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu121_pyt210/pytorch3d-0.7.5-cp310-cp310-linux_x86_64.whl
+    "$ELITE_PIP" install "$PYTORCH3D_WHEEL" || \
+        echo "  WARNING: pytorch3d wheel not found for this CUDA version, skipping"
 
     # diff-surfel-rasterization
     # Use system CUDA for nvcc (Vast.ai has CUDA at /usr/local/cuda)
