@@ -108,8 +108,10 @@ elif [ "$USE_STAGE4_MOTION" = "1" ]; then
         fi
     done
     # Fix 6-digit → 5-digit filenames in drive images to match transforms.json paths
+    # Also fix shape npz: ensure shape is (1, 300) not (1,) or (1,1,300)
     "$ELITE_PYTHON" - <<PYEOF_FIX
-import os, re
+import os, re, numpy as np, glob
+
 for subdir in ['images', 'fg_masks']:
     folder = os.path.join("$DRIVE_DIR", subdir)
     if not os.path.isdir(folder):
@@ -120,6 +122,30 @@ for subdir in ['images', 'fg_masks']:
             new = f"{int(m.group(1)):05d}{m.group(2)}"
             os.rename(os.path.join(folder, fname), os.path.join(folder, new))
     print(f"  [{subdir}] filenames normalized")
+
+# Fix shape in flame_param npz files
+flame_dir = os.path.join("$DRIVE_DIR", 'flame_param')
+if os.path.isdir(flame_dir):
+    npz_files = sorted(glob.glob(os.path.join(flame_dir, '*.npz')))
+    if npz_files:
+        sample = np.load(npz_files[0])
+        shape_val = sample['shape']
+        if shape_val.shape != (1, 300):
+            # Get correct shape from tracked params
+            tracked_base = "$SCRIPT_DIR/data/processed/IMG_9625_nerf"
+            # Try to find shape from processed flame_param
+            proc_npz = sorted(glob.glob(os.path.join(tracked_base, 'flame_param', '*.npz')))
+            if proc_npz:
+                correct_shape = np.load(proc_npz[0])['shape'].reshape(1, 300)
+            else:
+                correct_shape = shape_val.reshape(1, 300)
+            for f in npz_files:
+                d = dict(np.load(f))
+                d['shape'] = correct_shape
+                np.savez(f, **d)
+            print(f"  [flame_param] shape fixed to (1,300) for {len(npz_files)} files")
+        else:
+            print(f"  [flame_param] shape already correct (1,300)")
 PYEOF_FIX
     FRAME_COUNT=$(python3 -c "import json; d=json.load(open('$DRIVE_DIR/transforms.json')); print(len(d['frames']))")
     echo "  Drive data ready: $FRAME_COUNT frames"
