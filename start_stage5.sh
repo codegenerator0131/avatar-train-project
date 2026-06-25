@@ -107,6 +107,20 @@ elif [ "$USE_STAGE4_MOTION" = "1" ]; then
             ln -s "$PROCESSED_TARGET/$subdir" "$dst" && echo "  Symlinked $subdir from processed"
         fi
     done
+    # Fix 6-digit → 5-digit filenames in drive images to match transforms.json paths
+    "$ELITE_PYTHON" - <<PYEOF_FIX
+import os, re
+for subdir in ['images', 'fg_masks']:
+    folder = os.path.join("$DRIVE_DIR", subdir)
+    if not os.path.isdir(folder):
+        continue
+    for fname in sorted(os.listdir(folder)):
+        m = re.match(r'^(\d{6})(_\d{2}\.png)$', fname)
+        if m:
+            new = f"{int(m.group(1)):05d}{m.group(2)}"
+            os.rename(os.path.join(folder, fname), os.path.join(folder, new))
+    print(f"  [{subdir}] filenames normalized")
+PYEOF_FIX
     FRAME_COUNT=$(python3 -c "import json; d=json.load(open('$DRIVE_DIR/transforms.json')); print(len(d['frames']))")
     echo "  Drive data ready: $FRAME_COUNT frames"
 else

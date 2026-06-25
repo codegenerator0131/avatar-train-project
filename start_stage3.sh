@@ -105,6 +105,16 @@ STAGE2_TRACKED="$SCRIPT_DIR/data/processed/${ID}_vhap"
 
 mkdir -p "$PROCESSED_DIR" "$TRACKED_DIR"
 
+# Clean non-date-folder files from tracked dir (rsync may copy these in)
+if [ -d "$TRACKED_TARGET" ]; then
+    for f in "$TRACKED_TARGET"/transforms*.json "$TRACKED_TARGET"/canonical_flame_param.npz; do
+        [ -e "$f" ] && rm -f "$f" && echo "  Removed stale file: $f"
+    done
+    for d in "$TRACKED_TARGET"/images "$TRACKED_TARGET"/fg_masks "$TRACKED_TARGET"/flame_param; do
+        [ -d "$d" ] && rm -rf "$d" && echo "  Removed stale dir: $d"
+    done
+fi
+
 if [ -d "$STAGE2_OUTPUT" ] && [ ! -d "$PROCESSED_TARGET" ]; then
     echo "  Reusing Stage 2 processed output..."
     ln -sfn "$STAGE2_OUTPUT" "$PROCESSED_TARGET"
