@@ -270,14 +270,43 @@ else
         --chunk_size 1 \
         --model_path "$HUFIX_CKPT" && HUFIX_OK=1 || echo "  [warn] HuFix OOM — using raw render output instead"
 
+    # Find audio from Stage 4 output
+    AUDIO_FILE=""
+    if [ -n "$STAGE4_OUTPUT_DIR" ] && [ -f "$STAGE4_OUTPUT_DIR/speech.wav" ]; then
+        AUDIO_FILE="$STAGE4_OUTPUT_DIR/speech.wav"
+        echo "  Audio: $AUDIO_FILE"
+    else
+        echo "  [warn] No speech.wav found — output will have no audio"
+    fi
+
     if [ "$HUFIX_OK" = "1" ]; then
         [ -f "$VIS_DIR/final_rgb_${MOTION_NAME}_difix.mp4" ] && mv "$VIS_DIR/final_rgb_${MOTION_NAME}_difix.mp4" "$FINAL_RGB"
         [ -f "$VIS_DIR/final_nrm_${MOTION_NAME}_difix.mp4" ] && mv "$VIS_DIR/final_nrm_${MOTION_NAME}_difix.mp4" "$FINAL_NRM"
     else
         # Fallback: package raw render frames directly as final output
         echo "  Packaging raw render as final output..."
-        ffmpeg -y -framerate 25 -i "$SAVE_PATH_RGB/%05d.png" -c:v libx264 -pix_fmt yuv420p -crf 20 "$FINAL_RGB"
-        ffmpeg -y -framerate 25 -i "$SAVE_PATH_NRM/%05d.png" -c:v libx264 -pix_fmt yuv420p -crf 20 "$FINAL_NRM"
+        if [ -n "$AUDIO_FILE" ]; then
+            ffmpeg -y -framerate 25 -i "$SAVE_PATH_RGB/%05d.png" -i "$AUDIO_FILE" \
+                -c:v libx264 -pix_fmt yuv420p -crf 20 -c:a aac -shortest "$FINAL_RGB"
+            ffmpeg -y -framerate 25 -i "$SAVE_PATH_NRM/%05d.png" -i "$AUDIO_FILE" \
+                -c:v libx264 -pix_fmt yuv420p -crf 20 -c:a aac -shortest "$FINAL_NRM"
+        else
+            ffmpeg -y -framerate 25 -i "$SAVE_PATH_RGB/%05d.png" -c:v libx264 -pix_fmt yuv420p -crf 20 "$FINAL_RGB"
+            ffmpeg -y -framerate 25 -i "$SAVE_PATH_NRM/%05d.png" -c:v libx264 -pix_fmt yuv420p -crf 20 "$FINAL_NRM"
+        fi
+    fi
+
+    # Add audio to HuFix output if needed
+    if [ "$HUFIX_OK" = "1" ] && [ -n "$AUDIO_FILE" ] && [ -f "$FINAL_RGB" ]; then
+        TEMP_RGB="${FINAL_RGB%.mp4}_audio.mp4"
+        ffmpeg -y -i "$FINAL_RGB" -i "$AUDIO_FILE" -c:v copy -c:a aac -shortest "$TEMP_RGB" \
+            && mv "$TEMP_RGB" "$FINAL_RGB"
+        if [ -f "$FINAL_NRM" ]; then
+            TEMP_NRM="${FINAL_NRM%.mp4}_audio.mp4"
+            ffmpeg -y -i "$FINAL_NRM" -i "$AUDIO_FILE" -c:v copy -c:a aac -shortest "$TEMP_NRM" \
+                && mv "$TEMP_NRM" "$FINAL_NRM"
+        fi
+        echo "  [ok] Audio muxed into final video"
     fi
 
     [ -f "$VIS_DIR/final_rgb_${MOTION_NAME}_difix.mp4" ] && mv "$VIS_DIR/final_rgb_${MOTION_NAME}_difix.mp4" "$FINAL_RGB"
