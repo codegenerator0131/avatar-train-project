@@ -122,11 +122,75 @@ else
     echo "  tts env ready."
 fi
 
-# ── symlinks ──────────────────────────────────────────────────────────────────
+# ── FLAME files — copy (not symlink) to elite/asset/flame ────────────────────
+# Symlinks break when ELITE runs from inside elite/ dir (relative path resolution)
 mkdir -p "$ELITE_DIR/asset/flame"
-ln -sf "$SCRIPT_DIR/data/flame/flame2023.pkl"  "$ELITE_DIR/asset/flame/flame2023.pkl"
-ln -sf "$SCRIPT_DIR/data/flame/FLAME_masks.pkl" "$ELITE_DIR/asset/flame/FLAME_masks.pkl"
+for f in flame2023.pkl FLAME_masks.pkl mediapipe_landmark_embedding.npz \
+          head_template_mesh.obj landmark_embedding_with_eyes.npy; do
+    src="$SCRIPT_DIR/data/flame/$f"
+    dst="$ELITE_DIR/asset/flame/$f"
+    if [ -f "$src" ] && [ ! -f "$dst" ]; then
+        cp "$src" "$dst"
+        echo "  [ok] copied $f to elite/asset/flame/"
+    fi
+done
 
+# ── vhap/model/flame.py — patch to absolute paths ────────────────────────────
+# Installed package uses relative paths which break when run from elite/ dir
+FLAME_PY="$ELITE_ENV/lib/python3.10/site-packages/vhap/model/flame.py"
+if [ -f "$FLAME_PY" ]; then
+    sed -i "s|FLAME_MODEL_PATH = \"asset/flame/flame2023.pkl\"|FLAME_MODEL_PATH = \"$ELITE_DIR/asset/flame/flame2023.pkl\"|" "$FLAME_PY"
+    sed -i "s|FLAME_PARTS_PATH = \"asset/flame/FLAME_masks.pkl\"|FLAME_PARTS_PATH = \"$ELITE_DIR/asset/flame/FLAME_masks.pkl\"|" "$FLAME_PY"
+    sed -i "s|FLAME_MESH_PATH = \"asset/flame/head_template_mesh.obj\"|FLAME_MESH_PATH = \"$ELITE_DIR/asset/flame/head_template_mesh.obj\"|" "$FLAME_PY"
+    sed -i "s|FLAME_LMK_PATH = \"asset/flame/landmark_embedding_with_eyes.npy\"|FLAME_LMK_PATH = \"$ELITE_DIR/asset/flame/landmark_embedding_with_eyes.npy\"|" "$FLAME_PY"
+    echo "  [ok] vhap/model/flame.py patched to absolute paths"
+else
+    echo "  WARNING: $FLAME_PY not found — patch manually after ELITE env is built"
+fi
+
+# ── elite/src patches — applied via sed on each new machine ──────────────────
+# elite/ is a submodule with its own git repo — patches cannot be committed to parent repo
+
+# test_dataloader.py line ~395: fp['shape'] → fp['shape'][0]
+# Why: DataLoader batches shape(1,300) → (B,1,300) = 3D tensor → torch.cat dim mismatch
+TEST_DL="$ELITE_DIR/src/dataloader/test_dataloader.py"
+if [ -f "$TEST_DL" ]; then
+    if grep -q "flame_shape = fp\['shape'\]$" "$TEST_DL"; then
+        sed -i "s/        flame_shape = fp\['shape'\]$/        flame_shape = fp['shape'][0]/" "$TEST_DL"
+        echo "  [ok] test_dataloader.py: flame_shape = fp['shape'][0]"
+    else
+        echo "  [skip] test_dataloader.py already patched"
+    fi
+fi
+
+# test_dataloader.py + finetune_dataloader.py + personalize.py:
+# sorted(os.listdir())[-1] picks non-date files (transforms*.json, images/) → filter to date folders only
+for f in \
+    "$ELITE_DIR/src/dataloader/test_dataloader.py" \
+    "$ELITE_DIR/src/dataloader/finetune_dataloader.py" \
+    "$ELITE_DIR/src/personalize.py"; do
+    [ -f "$f" ] || continue
+    if grep -q "sorted(os.listdir" "$f" && ! grep -q "re.match" "$f"; then
+        # Add import re if missing
+        grep -q "^import re" "$f" || sed -i '1s/^/import re\n/' "$f"
+        # Patch sorted(os.listdir(x))[-1] → filter date-format folders
+        sed -i "s/sorted(os\.listdir(\([^)]*\)))\[-1\]/sorted([x for x in os.listdir(\1) if re.match(r'^\\\\\d{4}-\\\\\d{2}-\\\\\d{2}', x)])[-1]/g" "$f"
+        echo "  [ok] $(basename $f): date-folder filter applied"
+    else
+        echo "  [skip] $(basename $f): already patched or pattern not found"
+    fi
+done
+
+# render.py: cam_ids and resolution
+RENDER_PY="$ELITE_DIR/src/render.py"
+if [ -f "$RENDER_PY" ]; then
+    sed -i "s/cam_ids=\['222200037'\]/cam_ids=['our_cam']/" "$RENDER_PY"
+    sed -i "s/res=(802, 550)/res=(512, 512)/" "$RENDER_PY"
+    sed -i "s/res=(802,550)/res=(512,512)/" "$RENDER_PY"
+    echo "  [ok] render.py: cam_ids=our_cam, res=512x512"
+fi
+
+# ── data symlinks ─────────────────────────────────────────────────────────────
 PROCESSED_SRC="$SCRIPT_DIR/data/processed/IMG_9625_nerf"
 mkdir -p "$ELITE_DIR/data/source/processed" "$ELITE_DIR/data/source/tracked"
 if [ -d "$PROCESSED_SRC" ]; then
@@ -136,10 +200,10 @@ if [ -d "$PROCESSED_SRC" ]; then
         "$ELITE_DIR/data/source/tracked/IMG_9625_whiteBg_staticOffset"
     echo "  [ok] data symlinks created"
 else
-    echo "  WARNING: $PROCESSED_SRC not found"
+    echo "  WARNING: $PROCESSED_SRC not found — run Stage 2 first"
 fi
 
 echo ""
 echo "================================================"
-echo "  Setup complete! Run: bash start_stage5.sh"
+echo "  Setup complete! Run: bash start_stage3.sh or bash start_stage5.sh"
 echo "================================================"

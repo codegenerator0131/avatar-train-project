@@ -1,8 +1,8 @@
 # Avatar Train
 
-An in-house pipeline for building fully animatable 3D talking-head avatars from a single short video. Records a person speaking, fits a 3D head model to every frame, trains a 3D Gaussian avatar, then drives it with audio or text to produce talking-head video.
+An in-house pipeline for building fully animatable 3D talking-head avatars from a single short video. Records a person speaking, fits a 3D head model to every frame, trains a 3D Gaussian avatar, then drives it with audio or text to produce a talking-head video.
 
-Inspired by the [Tavus Phoenix](https://www.tavus.io) model. Uses [FLAME 2023](https://flame.is.tue.mpg.de) for face parametrization and [3D Gaussian Splatting](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/) for rendering.
+Inspired by the [Tavus Phoenix](https://www.tavus.io) model. Uses [FLAME 2023](https://flame.is.tue.mpg.de) for face parametrization and [ELITE](https://kim-youwang.github.io/elite) (CVPR 2026) for 3D Gaussian avatar training and rendering.
 
 ---
 
@@ -15,70 +15,85 @@ Video
 Stage 1 ── Capture ──────────── frames + audio + meta.json
   │
   ▼
-Stage 2 ── FLAME Tracking ───── per-frame FLAME params + camera poses (transforms.json)
+Stage 2 ── FLAME Tracking ───── per-frame FLAME params + transforms.json
   │
   ▼
-Stage 3 ── Splat Training ────── trained 3D Gaussian avatar
+Stage 3 ── 3DGS Avatar ──────── trained 3D Gaussian avatar (st2_final.pth)
   │
   ▼
-Stage 4 ── Audio-to-Motion ───── blendshape curves from speech audio
+Stage 4 ── Audio-to-Motion ───── speech.wav + per-frame FLAME .npz (lip sync)
   │
   ▼
-Stage 5 ── Inference ──────────── talking-head video from text or audio
+Stage 5 ── Render ─────────────── talking-head video
 ```
 
 | Stage | Status |
 |-------|--------|
-| 1 — Capture | Done |
-| 2 — FLAME Tracking (VHAP) | Ready to run |
-| 3 — Splat Training | Not built |
-| 4 — Audio-to-Motion | Not built |
-| 5 — Inference | Not built |
+| 1 — Capture | ✅ Done |
+| 2 — FLAME Tracking (VHAP) | ✅ Done |
+| 3 — 3DGS Avatar (ELITE) | ✅ Done |
+| 4 — Audio-to-Motion (CodeTalker + XTTS) | ✅ Done |
+| 5 — Render (ELITE + HuFix) | ✅ Done |
 
 ---
 
 ## Hardware requirements
 
-| Component | Minimum | Tested on |
-|-----------|---------|-----------|
-| GPU | 8 GB VRAM | RTX 3070 Laptop 8 GB |
-| RAM | 16 GB | 15 GB |
-| OS | Ubuntu 22.04+ | Ubuntu 24.04 |
-| CUDA | 11.8+ | 13.2 (nvcc 13.2.78) |
-| Python | 3.10 | 3.10 |
+| Component | Minimum | Recommended | Notes |
+|-----------|---------|-------------|-------|
+| GPU | 8 GB VRAM | 24 GB (RTX 4090) | Stage 3/5 train+render on 8GB, HuFix needs 24GB |
+| RAM | 16 GB | 32 GB | |
+| OS | Ubuntu 22.04+ | Ubuntu 24.04 | |
+| CUDA Driver | 12.x+ | 13.x | Pipeline uses conda cuda-toolkit 12.1 internally |
+| Python | 3.10 | 3.10 | |
 
-> The pipeline was designed for 12 GB VRAM (RTX 4080 Laptop). On 8 GB, use `--size 512` for capture and limit Gaussians to ~150k in Stage 3.
+> **HuFix post-processing** (Stage 5 Step 3) requires 24GB VRAM minimum. Use Vast.ai RTX 4090 (~$0.40/hr) for this step.
 
 ---
 
 ## Setup
 
+### Linux server (local)
+
 ```bash
 git clone <this-repo>
 cd avatar-train-project
+git submodule update --init --recursive
 bash setup_linux.sh
 bash start.sh
 ```
 
-That's it. On a new machine, `start.sh` detects missing setup and runs `setup_linux.sh` automatically if you forget.
+### Vast.ai (cloud GPU)
 
-`setup_linux.sh` does everything in one shot:
-1. System packages (`build-essential`, `ffmpeg`, `cmake`, etc.)
-2. CUDA nvcc compiler
-3. Main Python venv + all dependencies (PyTorch cu126, chumpy, mediapipe, etc.)
-4. VHAP submodule (`git submodule add`) + dedicated `vhap` conda env with nvdiffrast
+```bash
+# On Vast.ai instance (use PyTorch 2.1.0 + CUDA 12.1 template)
+cd /workspace/avatar-train-project
+bash setup_vastai.sh
+bash start.sh
+```
 
-**Prerequisite:** NVIDIA driver must be installed (`nvidia-smi` should work). Everything else — including Miniconda — is installed automatically by `setup_linux.sh`.
+> Use `setup_vastai.sh` on Vast.ai — NOT `setup_linux.sh`. The linux setup tries to install python3.11 via apt which fails on Ubuntu 24.04 Vast.ai images.
 
-### Required FLAME assets
+---
 
-Register for free at [flame.is.tue.mpg.de](https://flame.is.tue.mpg.de) and download:
+## Required downloads (one-time)
 
-| File | Place at |
-|------|----------|
+### FLAME model files
+Register free at [flame.is.tue.mpg.de](https://flame.is.tue.mpg.de) and place:
+
+| File | Path |
+|------|------|
 | `flame2023.pkl` | `data/flame/flame2023.pkl` |
 | `FLAME_masks.pkl` | `data/flame/FLAME_masks.pkl` |
 | `mediapipe_landmark_embedding.npz` | `data/flame/mediapipe_landmark_embedding.npz` |
+
+### ELITE checkpoints
+Download from [Google Drive](https://drive.google.com/drive/folders/1GKVymlwRi9shK0G2Qi5JrOFfkIdyUaHM) and place:
+
+| File | Path | Size |
+|------|------|------|
+| `3d_prior.pth` | `elite/checkpoints/3d_prior.pth` | 4.9 GB |
+| `2d_prior.pth` | `elite/checkpoints/2d_prior.pth` | 415 MB |
 
 ---
 
@@ -88,148 +103,152 @@ Register for free at [flame.is.tue.mpg.de](https://flame.is.tue.mpg.de) and down
 bash start.sh
 ```
 
-This opens a menu to run any stage. Or run stages directly:
+Opens a menu to run any stage. Or run stages directly:
 
 ```bash
 bash start_stage1.sh   # Capture
 bash start_stage2.sh   # FLAME Tracking
+bash start_stage3.sh   # 3DGS Avatar Training
+bash start_stage4.sh   # Audio-to-Motion
+bash start_stage5.sh   # Render
 ```
 
 ---
 
 ## Stage 1 — Capture
 
-**Script:** [capture.py](capture.py)  
-**Launcher:** [start_stage1.sh](start_stage1.sh)
+**Script:** [capture.py](capture.py) | **Launcher:** [start_stage1.sh](start_stage1.sh)
 
-Preprocesses a raw talking-head video into training-ready data:
+Preprocesses a raw talking-head video:
+- Detects face in every frame using MediaPipe
+- Computes a fixed square crop (keeps camera intrinsics constant)
+- Exports cropped frames as PNGs
+- Extracts 16kHz mono WAV audio
 
-- Detects the face in every frame using MediaPipe
-- Computes a single fixed square crop that covers the face in all frames (keeps camera intrinsics constant — critical for 3D geometry)
-- Exports cropped frames as PNGs at a fixed resolution
-- Extracts audio as 16 kHz mono WAV
+**Output:** `data/processed/take1/` — frames/, audio.wav, meta.json
 
-```bash
-python capture.py \
-  --video data/capture/IMG_9625.MOV \
-  --name  take1 \
-  --out   data/processed \
-  --size  512 \
-  --fps   30
-```
-
-**Output** at `data/processed/take1/`:
-```
-frames/000000.png ...   # square face crops
-audio.wav               # 16 kHz mono
-audio_full.wav          # original sample rate
-meta.json               # fps, crop box, image size, per-frame face boxes
-```
-
-**Recording protocol for best results:**
+**Recording tips for best results:**
 - 2 minutes of natural talking
-- 30 seconds of slow head rotation (provides multi-view signal)
-- 30 seconds of exaggerated mouth movements (trains expression range)
+- 30 seconds of slow head rotation
+- 30 seconds of exaggerated mouth movements
 
 ---
 
 ## Stage 2 — FLAME Tracking (VHAP)
 
-**Tracker:** [VHAP](https://github.com/ShenhanQian/VHAP) — Versatile Head Alignment with Adaptive Appearance Priors  
 **Launcher:** [start_stage2.sh](start_stage2.sh)
 
-Fits the FLAME 2023 head model to every frame using **photometric optimization** — minimizing the difference between a rendered mesh and the actual pixel colors, not just landmark positions. This produces accurate camera poses and geometry that Stage 3 (3DGS training) requires.
+Fits FLAME 2023 head model to every frame via photometric optimization.
 
-Three-step process:
-
-1. **Preprocess** — extract frames from video + separate foreground with `robust_video_matting`
-2. **Track** — photometric FLAME fitting per frame (full perspective camera, 30 global optimization epochs)
-3. **Export** — write `transforms.json` + per-frame FLAME params in NeRF/3DGS format
-
-### Install (one-time)
-
-Handled automatically by `bash setup_linux.sh` — it adds the VHAP submodule and creates the `vhap` conda env. If you need to do it manually:
-
-```bash
-git submodule add https://github.com/ShenhanQian/VHAP.git vhap
-git submodule update --init --recursive
-
-conda create --name vhap -y python=3.10
-conda activate vhap
-conda install -c "nvidia/label/cuda-12.1.1" cuda-toolkit ninja cmake
-ln -s "$CONDA_PREFIX/lib" "$CONDA_PREFIX/lib64"
-conda env config vars set CUDA_HOME=$CONDA_PREFIX
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-pip install git+https://github.com/ShenhanQian/nvdiffrast.git
-pip install -e vhap/
+**Output:** `data/processed/IMG_9625_nerf/`
 ```
-
-### Run
-
-```bash
-bash start_stage2.sh
-```
-
-Or manually:
-
-```bash
-conda activate vhap
-
-python vhap/vhap/preprocess_video.py \
-  --input data/capture/IMG_9625.MOV \
-  --matting_method robust_video_matting
-
-python vhap/vhap/track.py \
-  --data.root_folder data/source/input_videos \
-  --exp.output_folder data/processed/take1_vhap \
-  --data.sequence take1
-
-python vhap/vhap/export_as_nerf_dataset.py \
-  --src_folder data/processed/take1_vhap \
-  --tgt_folder data/processed/take1_nerf
-```
-
-**Output** at `data/processed/take1_nerf/`:
-```
-transforms.json           # camera intrinsics + extrinsics per frame (NeRF/3DGS format)
-transforms_train.json
-transforms_val.json
-images/                   # matted frames (white background)
+transforms.json           # camera intrinsics + extrinsics
+images/                   # matted frames (white background), 6-digit filenames: 000000_00.png
 fg_masks/                 # foreground alpha masks
-flame_param/              # per-frame .npz (shape, expr, rotation, pose, translation)
-canonical.obj             # FLAME neutral mesh
-canonical_flame_param.npz
+flame_param/              # per-frame .npz, 5-digit filenames: 00000.npz
 ```
 
----
-
-## Stage 3 — Splat Training (not built)
-
-Trains a 3D Gaussian Splatting avatar from the tracked frames and FLAME geometry.
-
-**Planned approach** (based on [ELITE](https://kim-youwang.github.io/elite), CVPR 2026):
-- Initialize Gaussians from FLAME mesh via a Mesh2Gaussian Prior Model
-- Fine-tune with `diff-surfel-rasterization` (surface-based, better normals than volume-based 3DGS)
-- Input: `transforms.json` + `flame_param/` from Stage 2 (VHAP output)
-- Output: trained `.ply` Gaussian avatar
+**Run flags for 8GB VRAM:** `--data.scale-factor 0.5 --batch-size 4`
 
 ---
 
-## Stage 4 — Audio-to-Motion (not built)
+## Stage 3 — 3DGS Avatar Training (ELITE)
 
-Converts speech audio into per-frame blendshape curves (expression + jaw parameters).
+**Launcher:** [start_stage3.sh](start_stage3.sh)
 
-- Input: audio file (WAV/MP3)
-- Output: same parameter format as Stage 2 — composable with Stage 5
+Trains a 3D Gaussian Splatting avatar using ELITE (CVPR 2026).
+
+**Recommended steps:** `ST1_N_STEPS=2000`, `ST2_N_STEPS=4000` (~12 hrs on RTX 4090 with `singleview_bs=4`)
+
+**Output:** `elite/outputs/IMG_9625/st2/checkpoints/st2_final.pth`
+
+> **Important:** After training on Vast.ai, download `st2_final.pth` BEFORE destroying the instance. It's ~4-5GB.
+
+### Known issues & fixes (already applied in start_stage3.sh)
+- `finetuning.py`: `N_log = 4` → `N_log = min(4, N)` (index OOB with small batch)
+- `singleview_bs 4` is optimal for RTX 4090 — bs=6/8 are actually slower
+- ELITE dataloaders use `sorted(os.listdir())[-1]` to find tracked run folder — rsync copies stray files (transforms*.json, images/, fg_masks/) into tracked dir which breaks this → script cleans them before running
+
+### Vast.ai extra steps (handled in start_stage3.sh)
+- ELITE_PYTHON path: `/opt/miniforge3/envs/ELITE/bin/python`
+- FLAME files must be **copied** (not symlinked) to `elite/asset/flame/` — symlinks break when running from inside `elite/` dir
+- `vhap/model/flame.py` uses relative paths — must patch to absolute paths:
+  ```bash
+  sed -i 's|FLAME_MODEL_PATH = "asset/flame/flame2023.pkl"|FLAME_MODEL_PATH = "/workspace/avatar-train-project/elite/asset/flame/flame2023.pkl"|' \
+    /opt/miniforge3/envs/ELITE/lib/python3.10/site-packages/vhap/model/flame.py
+  sed -i 's|FLAME_PARTS_PATH = "asset/flame/FLAME_masks.pkl"|FLAME_PARTS_PATH = "/workspace/avatar-train-project/elite/asset/flame/FLAME_masks.pkl"|' \
+    /opt/miniforge3/envs/ELITE/lib/python3.10/site-packages/vhap/model/flame.py
+  sed -i 's|FLAME_MESH_PATH = "asset/flame/head_template_mesh.obj"|FLAME_MESH_PATH = "/workspace/avatar-train-project/elite/asset/flame/head_template_mesh.obj"|' \
+    /opt/miniforge3/envs/ELITE/lib/python3.10/site-packages/vhap/model/flame.py
+  sed -i 's|FLAME_LMK_PATH = "asset/flame/landmark_embedding_with_eyes.npy"|FLAME_LMK_PATH = "/workspace/avatar-train-project/elite/asset/flame/landmark_embedding_with_eyes.npy"|' \
+    /opt/miniforge3/envs/ELITE/lib/python3.10/site-packages/vhap/model/flame.py
+  ```
 
 ---
 
-## Stage 5 — Inference (not built)
+## Stage 4 — Audio-to-Motion
 
-Drives the trained Gaussian avatar with audio or text to render a talking-head video.
+**Launcher:** [start_stage4.sh](start_stage4.sh)
 
-- Input: text or audio + trained avatar from Stage 3
-- Output: MP4 talking-head video
+Converts text → speech (XTTS v2 voice cloning) → lip-sync FLAME params (CodeTalker).
+
+**Pipeline:** Text → XTTS v2 → speech.wav → CodeTalker VOCASET → mesh vertices → FLAME fitting → per-frame .npz
+
+**Output:** `data/stage4/IMG_9625/{text}/`
+```
+speech.wav          # cloned voice audio
+transforms.json     # camera params
+flame_param/        # per-frame .npz: shape(1,300), expr(1,100), jaw_pose(1,3), ...
+images/             # reference images (symlinked from processed)
+fg_masks/           # reference masks (symlinked from processed)
+```
+
+### Known issues (already fixed in start_stage4.sh)
+- Stage 4 `expr` values can be 3x out of range vs Stage 2 — causes Gaussians to explode in render → `start_stage5.sh` auto-scales expr to match Stage 2 distribution
+- Stage 4 `jaw_pose` can be 25x out of range → `start_stage5.sh` auto-scales jaw to match Stage 2 distribution
+- Stage 4 npz `shape` was saving `(1,)` instead of `(1,300)` → fixed in start_stage4.sh
+
+---
+
+## Stage 5 — Render
+
+**Launcher:** [start_stage5.sh](start_stage5.sh)
+
+Renders the trained avatar with Stage 4 lip-sync motion. Optionally applies HuFix (Stable Diffusion-based enhancement).
+
+**Output:** `elite/outputs/IMG_9625/vis_motion/IMG_9625_rgb_stage4_{text}.mp4`
+
+### HuFix
+- Requires **24GB VRAM** minimum (RTX 4090 recommended)
+- On 8GB GPU: automatically skipped, raw render used instead
+- Raw render quality is acceptable without HuFix
+
+### Known issues (already fixed in start_stage5.sh)
+- Drive images 6-digit vs transforms.json 5-digit filenames → auto-renamed
+- Stage 4 npz `shape (1,)` → auto-fixed to `(1,300)`
+- Stage 4 `expr` and `jaw_pose` out of training distribution → auto-scaled
+
+### Manual patch required on each new machine
+`elite/src/dataloader/test_dataloader.py` line 395 must be patched:
+```bash
+sed -i "s/        flame_shape = fp\['shape'\]$/        flame_shape = fp['shape'][0]/" \
+  ~/Documents/avatar-train-project/elite/src/dataloader/test_dataloader.py
+```
+**Why:** DataLoader batches `shape(1,300)` → `(B,1,300)` = 3D tensor, causing `torch.cat([shape, expr], dim=1)` to fail with dimension mismatch.
+
+---
+
+## Vast.ai guide
+
+See [VASTAI_SETUP.md](VASTAI_SETUP.md) for full step-by-step instructions.
+
+**Quick summary:**
+1. Rent RTX 4090 24GB instance (~$0.40/hr)
+2. rsync project files from Linux server
+3. `bash setup_vastai.sh`
+4. Patch vhap/model/flame.py (absolute paths — see Stage 3 section above)
+5. `bash start_stage3.sh` or `bash start_stage5.sh`
+6. Download `st2_final.pth` before destroying instance
 
 ---
 
@@ -237,19 +256,19 @@ Drives the trained Gaussian avatar with audio or text to render a talking-head v
 
 | File | Purpose |
 |------|---------|
-| [capture.py](capture.py) | Stage 1 — video preprocessing |
-| [vhap/](vhap/) | Stage 2 — VHAP photometric FLAME tracker (submodule) |
-| [track.py](track.py) | Legacy landmark-only tracker (superseded by VHAP) |
-| [flame.py](flame.py) | FLAME 2023 differentiable forward model |
-| [landmarks.py](landmarks.py) | MediaPipe Face Landmarker wrapper (468-pt) |
-| [verify_env.py](verify_env.py) | Environment check (CUDA, deps, assets) |
-| [setup_linux.sh](setup_linux.sh) | Automated environment setup |
+| [setup_linux.sh](setup_linux.sh) | Full env setup for Linux server |
+| [setup_vastai.sh](setup_vastai.sh) | Env setup for Vast.ai cloud GPU |
 | [start.sh](start.sh) | Main menu launcher |
-| [start_stage1.sh](start_stage1.sh) | Stage 1 launcher |
-| [start_stage2.sh](start_stage2.sh) | Stage 2 launcher |
-| [requirements.txt](requirements.txt) | Python dependencies |
-| [avatar-project-handover.md](avatar-project-handover.md) | Full technical spec |
-| [avatar-training-machine-setup.md](avatar-training-machine-setup.md) | Machine setup guide |
+| [start_stage1.sh](start_stage1.sh) | Stage 1 — Capture |
+| [start_stage2.sh](start_stage2.sh) | Stage 2 — FLAME Tracking |
+| [start_stage3.sh](start_stage3.sh) | Stage 3 — 3DGS Avatar Training |
+| [start_stage4.sh](start_stage4.sh) | Stage 4 — Audio-to-Motion |
+| [start_stage5.sh](start_stage5.sh) | Stage 5 — Render |
+| [elite_export_ply.py](elite_export_ply.py) | Export trained avatar as PLY |
+| [hufix_chunked.py](hufix_chunked.py) | Chunked HuFix post-processing |
+| [capture.py](capture.py) | Stage 1 video preprocessing |
+| [VASTAI_SETUP.md](VASTAI_SETUP.md) | Vast.ai step-by-step guide |
+| [DOWNLOADS.md](DOWNLOADS.md) | Manual downloads required |
 
 ---
 
@@ -258,27 +277,36 @@ Drives the trained Gaussian avatar with audio or text to render a talking-head v
 ```
 data/
   capture/
-    IMG_9625.MOV          # original recording
+    IMG_9625.mov            # original recording
   flame/
-    flame2023.pkl         # FLAME 2023 model (download required)
-    FLAME_masks.pkl       # vertex region masks (download required)
+    flame2023.pkl           # FLAME 2023 model (download required)
+    FLAME_masks.pkl         # vertex region masks (download required)
     mediapipe_landmark_embedding.npz
   processed/
-    take1/
-      frames/             # Stage 1 output — cropped PNG frames
-      audio.wav
-      audio_full.wav
-      meta.json
-    take1_vhap/           # Stage 2 VHAP intermediate (tracked params)
-    take1_nerf/           # Stage 2 final output (NeRF/3DGS format)
+    IMG_9625_nerf/          # Stage 2 output (NeRF/3DGS format)
       transforms.json
-      transforms_train.json
-      transforms_val.json
-      images/
+      images/               # 6-digit filenames: 000000_00.png
       fg_masks/
-      flame_param/
-      canonical.obj
-      canonical_flame_param.npz
+      flame_param/          # 5-digit filenames: 00000.npz
+    IMG_9625_vhap/          # Stage 2 tracked intermediate (date subfolders)
+  stage4/
+    IMG_9625/
+      Hello_World/          # Stage 4 output for text "Hello, world"
+        speech.wav
+        transforms.json
+        flame_param/        # per-frame FLAME params
+        images/             # symlink to processed images
+        fg_masks/           # symlink to processed masks
+
+elite/
+  checkpoints/
+    3d_prior.pth            # ELITE 3DGS prior (4.9GB, download required)
+    2d_prior.pth            # HuFix prior (415MB, download required)
+  outputs/
+    IMG_9625/
+      st1/checkpoints/st1_final.pth   # Stage 3 step 1 checkpoint
+      st2/checkpoints/st2_final.pth   # Stage 3 step 2 checkpoint (main avatar)
+      vis_motion/                      # Stage 5 render output
 ```
 
 ---
@@ -288,5 +316,6 @@ data/
 - [FLAME 2023](https://flame.is.tue.mpg.de) — parametric head model
 - [VHAP](https://github.com/ShenhanQian/VHAP) — photometric FLAME tracker
 - [ELITE](https://kim-youwang.github.io/elite) — Efficient Gaussian Head Avatar (CVPR 2026)
-- [3D Gaussian Splatting](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/) — real-time radiance field rendering
+- [CodeTalker](https://github.com/Doubiiu/CodeTalker) — speech-driven 3D facial animation
+- [XTTS v2](https://github.com/coqui-ai/TTS) — voice cloning TTS
 - [diff-surfel-rasterization](https://github.com/hbb1/diff-surfel-rasterization) — surface-based 3DGS rasterizer
