@@ -284,7 +284,7 @@ PYEOF
 
 # Stage 1: personalize with real images (skip if checkpoint exists)
 ST1_CKPT="$EXP_PATH/st1/checkpoints/st1_final.pth"
-ST1_N_STEPS=500
+ST1_N_STEPS=100  # TEST: was 500, change to 2000 for production
 if [ -f "$ST1_CKPT" ]; then
     echo "  [skip] Stage 1 checkpoint exists: $ST1_CKPT"
 else
@@ -330,7 +330,7 @@ echo ""
 echo "Step 3/3 — Personalizing ELITE avatar (stage 2 fine-tuning)..."
 echo ""
 ST2_CKPT="$EXP_PATH/st2/checkpoints/st2_final.pth"
-ST2_N_STEPS=1000
+ST2_N_STEPS=200  # TEST: was 1000, change to 4000 for production
 if [ -f "$ST2_CKPT" ]; then
     echo "  [skip] Stage 2 checkpoint exists: $ST2_CKPT"
 else
