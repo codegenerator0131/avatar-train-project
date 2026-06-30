@@ -1,0 +1,458 @@
+2026-06-15 23:42:47,443 INFO    : Loaded configure file alignment: 15b11ba1-af9a-4135-8b50-801ba6ff04f9
+2026-06-15 23:42:47,443 INFO    : 
+type: alignment
+id: 15b11ba1-af9a-4135-8b50-801ba6ff04f9
+note: 
+ckpt_dir: ./tmp/apdcephfs_cq3/share_1134483/charlinzhou/ckpts/STAR/
+image_dir: ./300W
+annot_dir: ./
+loader_type: alignment
+loss_func: STARLoss_v2
+batch_size: 32
+val_batch_size: 32
+test_batch_size: 16
+channels: 3
+width: 256
+height: 256
+means: (127.5, 127.5, 127.5)
+scale: 0.00784313725490196
+display_iteration: 10
+milestones: [200, 350, 450]
+max_epoch: 500
+net: stackedHGnet_v1
+nstack: 4
+optimizer: adam
+learn_rate: 0.001
+momentum: 0.01
+weight_decay: 1e-05
+nesterov: False
+scheduler: MultiStepLR
+gamma: 0.1
+loss_weights: [0.125, 1.25, 1.25, 0.25, 2.5, 2.5, 0.5, 5.0, 5.0, 1.0, 10.0, 10.0]
+criterions: ['STARLoss_v2', 'AWingLoss', 'AWingLoss', 'STARLoss_v2', 'AWingLoss', 'AWingLoss', 'STARLoss_v2', 'AWingLoss', 'AWingLoss', 'STARLoss_v2', 'AWingLoss', 'AWingLoss']
+metrics: ['NME', None, None, 'NME', None, None, 'NME', None, None, 'NME', None, None]
+key_metric_index: 9
+classes_num: [68, 9, 68]
+label_num: 12
+ema: True
+use_AAM: True
+writer: <torch.utils.tensorboard.writer.SummaryWriter object at 0x7388e102d690>
+logger: <RootLogger root (NOTSET)>
+data_definition: 300W
+test_file: test.tsv
+aug_prob: 1.0
+val_epoch: 1
+valset: test.tsv
+norm_type: default
+encoder_type: default
+decoder_type: default
+betas: [0.9, 0.999]
+train_num_workers: 16
+val_num_workers: 16
+test_num_workers: 0
+add_coord: True
+star_w: 1
+star_dist: smoothl1
+edge_info: ((False, (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)), (False, (17, 18, 19, 20, 21)), (False, (22, 23, 24, 25, 26)), (False, (27, 28, 29, 30)), (False, (31, 32, 33, 34, 35)), (True, (36, 37, 38, 39, 40, 41)), (True, (42, 43, 44, 45, 46, 47)), (True, (48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59)), (True, (60, 61, 62, 63, 64, 65, 66, 67)))
+nme_left_index: 36
+nme_right_index: 45
+crop_op: True
+flip_mapping: ([0, 16], [1, 15], [2, 14], [3, 13], [4, 12], [5, 11], [6, 10], [7, 9], [17, 26], [18, 25], [19, 24], [20, 23], [21, 22], [31, 35], [32, 34], [36, 45], [37, 44], [38, 43], [39, 42], [40, 47], [41, 46], [48, 54], [49, 53], [50, 52], [61, 63], [60, 64], [67, 65], [58, 56], [59, 55])
+folder: 300W_256x256_adam_ep500_lr0.001_bs32_STARLoss_v2_AAM_15b11ba1-af9a-4135-8b50-801ba6ff04f9
+work_dir: ./tmp/apdcephfs_cq3/share_1134483/charlinzhou/ckpts/STAR/300W/300W_256x256_adam_ep500_lr0.001_bs32_STARLoss_v2_AAM_15b11ba1-af9a-4135-8b50-801ba6ff04f9
+model_dir: ./tmp/apdcephfs_cq3/share_1134483/charlinzhou/ckpts/STAR/300W/300W_256x256_adam_ep500_lr0.001_bs32_STARLoss_v2_AAM_15b11ba1-af9a-4135-8b50-801ba6ff04f9/model
+log_dir: ./tmp/apdcephfs_cq3/share_1134483/charlinzhou/ckpts/STAR/300W/300W_256x256_adam_ep500_lr0.001_bs32_STARLoss_v2_AAM_15b11ba1-af9a-4135-8b50-801ba6ff04f9/log
+train_tsv_file: ./300W/train.tsv
+train_pic_dir: ./300W
+val_tsv_file: ./300W/test.tsv
+val_pic_dir: ./300W
+test_tsv_file: ./300W/test.tsv
+test_pic_dir: ./300W
+device_id: 0
+device: cuda:0
+use_gpu: True
+2026-06-15 23:42:50,513 DEBUG   : Importing JpegImagePlugin
+2026-06-15 23:42:50,579 INFO    : Annotate facial landmarks for timestep: 000004, camera: 0
+2026-06-15 23:42:52,015 INFO    : Annotate facial landmarks for timestep: 000012, camera: 0
+2026-06-15 23:42:52,670 INFO    : Annotate facial landmarks for timestep: 000020, camera: 0
+2026-06-15 23:42:53,325 INFO    : Annotate facial landmarks for timestep: 000028, camera: 0
+2026-06-15 23:42:53,986 INFO    : Annotate facial landmarks for timestep: 000036, camera: 0
+2026-06-15 23:42:54,646 INFO    : Annotate facial landmarks for timestep: 000044, camera: 0
+2026-06-15 23:42:55,299 INFO    : Annotate facial landmarks for timestep: 000052, camera: 0
+2026-06-15 23:42:55,950 INFO    : Annotate facial landmarks for timestep: 000060, camera: 0
+2026-06-15 23:42:56,611 INFO    : Annotate facial landmarks for timestep: 000068, camera: 0
+2026-06-15 23:42:57,260 INFO    : Annotate facial landmarks for timestep: 000076, camera: 0
+2026-06-15 23:42:57,916 INFO    : Annotate facial landmarks for timestep: 000084, camera: 0
+2026-06-15 23:42:58,567 INFO    : Annotate facial landmarks for timestep: 000092, camera: 0
+2026-06-15 23:42:59,220 INFO    : Annotate facial landmarks for timestep: 000100, camera: 0
+2026-06-15 23:42:59,883 INFO    : Annotate facial landmarks for timestep: 000108, camera: 0
+2026-06-15 23:43:00,545 INFO    : Annotate facial landmarks for timestep: 000116, camera: 0
+2026-06-15 23:43:01,223 INFO    : Annotate facial landmarks for timestep: 000124, camera: 0
+2026-06-15 23:43:01,922 INFO    : Annotate facial landmarks for timestep: 000132, camera: 0
+2026-06-15 23:43:02,624 INFO    : Annotate facial landmarks for timestep: 000140, camera: 0
+2026-06-15 23:43:03,323 INFO    : Annotate facial landmarks for timestep: 000148, camera: 0
+2026-06-15 23:43:04,015 INFO    : Annotate facial landmarks for timestep: 000156, camera: 0
+2026-06-15 23:43:04,684 INFO    : Annotate facial landmarks for timestep: 000164, camera: 0
+2026-06-15 23:43:05,326 INFO    : Annotate facial landmarks for timestep: 000172, camera: 0
+2026-06-15 23:43:05,968 INFO    : Annotate facial landmarks for timestep: 000180, camera: 0
+2026-06-15 23:43:06,564 INFO    : Annotate facial landmarks for timestep: 000188, camera: 0
+2026-06-15 23:43:07,214 INFO    : Annotate facial landmarks for timestep: 000196, camera: 0
+2026-06-15 23:43:07,885 INFO    : Annotate facial landmarks for timestep: 000204, camera: 0
+2026-06-15 23:43:08,572 INFO    : Annotate facial landmarks for timestep: 000212, camera: 0
+2026-06-15 23:43:09,263 INFO    : Annotate facial landmarks for timestep: 000220, camera: 0
+2026-06-15 23:43:09,917 INFO    : Annotate facial landmarks for timestep: 000228, camera: 0
+2026-06-15 23:43:10,514 INFO    : Annotate facial landmarks for timestep: 000236, camera: 0
+2026-06-15 23:43:11,104 INFO    : Annotate facial landmarks for timestep: 000244, camera: 0
+2026-06-15 23:43:11,687 INFO    : Annotate facial landmarks for timestep: 000252, camera: 0
+2026-06-15 23:43:12,398 INFO    : Annotate facial landmarks for timestep: 000260, camera: 0
+2026-06-15 23:43:13,119 INFO    : Annotate facial landmarks for timestep: 000268, camera: 0
+2026-06-15 23:43:13,846 INFO    : Annotate facial landmarks for timestep: 000276, camera: 0
+2026-06-15 23:43:14,529 INFO    : Annotate facial landmarks for timestep: 000284, camera: 0
+2026-06-15 23:43:15,213 INFO    : Annotate facial landmarks for timestep: 000292, camera: 0
+2026-06-15 23:43:15,897 INFO    : Annotate facial landmarks for timestep: 000300, camera: 0
+2026-06-15 23:43:16,604 INFO    : Annotate facial landmarks for timestep: 000308, camera: 0
+2026-06-15 23:43:17,297 INFO    : Annotate facial landmarks for timestep: 000316, camera: 0
+2026-06-15 23:43:17,947 INFO    : Annotate facial landmarks for timestep: 000324, camera: 0
+2026-06-15 23:43:18,647 INFO    : Annotate facial landmarks for timestep: 000332, camera: 0
+2026-06-15 23:43:19,340 INFO    : Annotate facial landmarks for timestep: 000340, camera: 0
+2026-06-15 23:43:20,038 INFO    : Annotate facial landmarks for timestep: 000348, camera: 0
+2026-06-15 23:43:20,716 INFO    : Annotate facial landmarks for timestep: 000356, camera: 0
+2026-06-15 23:43:21,384 INFO    : Annotate facial landmarks for timestep: 000364, camera: 0
+2026-06-15 23:43:22,035 INFO    : Annotate facial landmarks for timestep: 000372, camera: 0
+2026-06-15 23:43:22,686 INFO    : Annotate facial landmarks for timestep: 000380, camera: 0
+2026-06-15 23:43:23,320 INFO    : Annotate facial landmarks for timestep: 000388, camera: 0
+2026-06-15 23:43:23,960 INFO    : Annotate facial landmarks for timestep: 000396, camera: 0
+2026-06-15 23:43:24,618 INFO    : Annotate facial landmarks for timestep: 000404, camera: 0
+2026-06-15 23:43:25,252 INFO    : Annotate facial landmarks for timestep: 000412, camera: 0
+2026-06-15 23:43:25,893 INFO    : Annotate facial landmarks for timestep: 000420, camera: 0
+2026-06-15 23:43:26,539 INFO    : Annotate facial landmarks for timestep: 000428, camera: 0
+2026-06-15 23:43:27,174 INFO    : Annotate facial landmarks for timestep: 000436, camera: 0
+2026-06-15 23:43:27,799 INFO    : Annotate facial landmarks for timestep: 000444, camera: 0
+2026-06-15 23:43:28,420 INFO    : Annotate facial landmarks for timestep: 000452, camera: 0
+2026-06-15 23:43:29,057 INFO    : Annotate facial landmarks for timestep: 000460, camera: 0
+2026-06-15 23:43:29,687 INFO    : Annotate facial landmarks for timestep: 000468, camera: 0
+2026-06-15 23:43:30,307 INFO    : Annotate facial landmarks for timestep: 000476, camera: 0
+2026-06-15 23:43:30,931 INFO    : Annotate facial landmarks for timestep: 000484, camera: 0
+2026-06-15 23:43:31,554 INFO    : Annotate facial landmarks for timestep: 000492, camera: 0
+2026-06-15 23:43:32,183 INFO    : Annotate facial landmarks for timestep: 000500, camera: 0
+2026-06-15 23:43:32,811 INFO    : Annotate facial landmarks for timestep: 000508, camera: 0
+2026-06-15 23:43:33,446 INFO    : Annotate facial landmarks for timestep: 000516, camera: 0
+2026-06-15 23:43:34,085 INFO    : Annotate facial landmarks for timestep: 000524, camera: 0
+2026-06-15 23:43:34,720 INFO    : Annotate facial landmarks for timestep: 000532, camera: 0
+2026-06-15 23:43:35,356 INFO    : Annotate facial landmarks for timestep: 000540, camera: 0
+2026-06-15 23:43:36,011 INFO    : Annotate facial landmarks for timestep: 000548, camera: 0
+2026-06-15 23:43:36,661 INFO    : Annotate facial landmarks for timestep: 000556, camera: 0
+2026-06-15 23:43:37,312 INFO    : Annotate facial landmarks for timestep: 000564, camera: 0
+2026-06-15 23:43:37,966 INFO    : Annotate facial landmarks for timestep: 000572, camera: 0
+2026-06-15 23:43:38,619 INFO    : Annotate facial landmarks for timestep: 000580, camera: 0
+2026-06-15 23:43:39,277 INFO    : Annotate facial landmarks for timestep: 000588, camera: 0
+2026-06-15 23:43:39,929 INFO    : Annotate facial landmarks for timestep: 000596, camera: 0
+2026-06-15 23:43:40,576 INFO    : Annotate facial landmarks for timestep: 000604, camera: 0
+2026-06-15 23:43:41,214 INFO    : Annotate facial landmarks for timestep: 000612, camera: 0
+2026-06-15 23:43:41,875 INFO    : Annotate facial landmarks for timestep: 000620, camera: 0
+2026-06-15 23:43:42,541 INFO    : Annotate facial landmarks for timestep: 000628, camera: 0
+2026-06-15 23:43:43,198 INFO    : Annotate facial landmarks for timestep: 000636, camera: 0
+2026-06-15 23:43:43,861 INFO    : Annotate facial landmarks for timestep: 000644, camera: 0
+2026-06-15 23:43:44,514 INFO    : Annotate facial landmarks for timestep: 000652, camera: 0
+2026-06-15 23:43:45,173 INFO    : Annotate facial landmarks for timestep: 000660, camera: 0
+2026-06-15 23:43:45,864 INFO    : Annotate facial landmarks for timestep: 000668, camera: 0
+2026-06-15 23:43:46,546 INFO    : Annotate facial landmarks for timestep: 000676, camera: 0
+2026-06-15 23:43:47,242 INFO    : Annotate facial landmarks for timestep: 000684, camera: 0
+2026-06-15 23:43:47,932 INFO    : Annotate facial landmarks for timestep: 000692, camera: 0
+2026-06-15 23:43:48,623 INFO    : Annotate facial landmarks for timestep: 000700, camera: 0
+2026-06-15 23:43:49,300 INFO    : Annotate facial landmarks for timestep: 000708, camera: 0
+2026-06-15 23:43:49,980 INFO    : Annotate facial landmarks for timestep: 000716, camera: 0
+2026-06-15 23:43:50,660 INFO    : Annotate facial landmarks for timestep: 000724, camera: 0
+2026-06-15 23:43:51,334 INFO    : Annotate facial landmarks for timestep: 000732, camera: 0
+2026-06-15 23:43:52,016 INFO    : Annotate facial landmarks for timestep: 000740, camera: 0
+2026-06-15 23:43:52,700 INFO    : Annotate facial landmarks for timestep: 000748, camera: 0
+2026-06-15 23:43:53,381 INFO    : Annotate facial landmarks for timestep: 000756, camera: 0
+2026-06-15 23:43:54,058 INFO    : Annotate facial landmarks for timestep: 000764, camera: 0
+2026-06-15 23:43:54,762 INFO    : Annotate facial landmarks for timestep: 000772, camera: 0
+2026-06-15 23:43:55,461 INFO    : Annotate facial landmarks for timestep: 000780, camera: 0
+2026-06-15 23:43:56,177 INFO    : Annotate facial landmarks for timestep: 000788, camera: 0
+2026-06-15 23:43:56,879 INFO    : Annotate facial landmarks for timestep: 000796, camera: 0
+2026-06-15 23:43:57,587 INFO    : Annotate facial landmarks for timestep: 000804, camera: 0
+2026-06-15 23:43:58,263 INFO    : Annotate facial landmarks for timestep: 000812, camera: 0
+2026-06-15 23:43:58,955 INFO    : Annotate facial landmarks for timestep: 000820, camera: 0
+2026-06-15 23:43:59,647 INFO    : Annotate facial landmarks for timestep: 000828, camera: 0
+2026-06-15 23:44:00,339 INFO    : Annotate facial landmarks for timestep: 000836, camera: 0
+2026-06-15 23:44:01,017 INFO    : Annotate facial landmarks for timestep: 000844, camera: 0
+2026-06-15 23:44:01,697 INFO    : Annotate facial landmarks for timestep: 000852, camera: 0
+2026-06-15 23:44:02,369 INFO    : Annotate facial landmarks for timestep: 000860, camera: 0
+2026-06-15 23:44:03,046 INFO    : Annotate facial landmarks for timestep: 000868, camera: 0
+2026-06-15 23:44:03,724 INFO    : Annotate facial landmarks for timestep: 000876, camera: 0
+2026-06-15 23:44:04,392 INFO    : Annotate facial landmarks for timestep: 000884, camera: 0
+2026-06-15 23:44:05,051 INFO    : Annotate facial landmarks for timestep: 000892, camera: 0
+2026-06-15 23:44:05,713 INFO    : Annotate facial landmarks for timestep: 000900, camera: 0
+2026-06-15 23:44:06,372 INFO    : Annotate facial landmarks for timestep: 000908, camera: 0
+2026-06-15 23:44:07,038 INFO    : Annotate facial landmarks for timestep: 000916, camera: 0
+2026-06-15 23:44:07,738 INFO    : Annotate facial landmarks for timestep: 000924, camera: 0
+2026-06-15 23:44:08,437 INFO    : Annotate facial landmarks for timestep: 000932, camera: 0
+2026-06-15 23:44:09,126 INFO    : Annotate facial landmarks for timestep: 000940, camera: 0
+2026-06-15 23:44:09,823 INFO    : Annotate facial landmarks for timestep: 000948, camera: 0
+2026-06-15 23:44:10,513 INFO    : Annotate facial landmarks for timestep: 000956, camera: 0
+2026-06-15 23:44:11,173 INFO    : Annotate facial landmarks for timestep: 000964, camera: 0
+2026-06-15 23:44:11,845 INFO    : Annotate facial landmarks for timestep: 000972, camera: 0
+2026-06-15 23:44:12,515 INFO    : Annotate facial landmarks for timestep: 000980, camera: 0
+2026-06-15 23:44:13,203 INFO    : Annotate facial landmarks for timestep: 000988, camera: 0
+2026-06-15 23:44:13,891 INFO    : Annotate facial landmarks for timestep: 000996, camera: 0
+2026-06-15 23:44:14,581 INFO    : Annotate facial landmarks for timestep: 001004, camera: 0
+2026-06-15 23:44:15,283 INFO    : Annotate facial landmarks for timestep: 001012, camera: 0
+2026-06-15 23:44:15,975 INFO    : Annotate facial landmarks for timestep: 001020, camera: 0
+2026-06-15 23:44:16,650 INFO    : Annotate facial landmarks for timestep: 001028, camera: 0
+2026-06-15 23:44:17,359 INFO    : Annotate facial landmarks for timestep: 001036, camera: 0
+2026-06-15 23:44:18,059 INFO    : Annotate facial landmarks for timestep: 001044, camera: 0
+2026-06-15 23:44:18,746 INFO    : Annotate facial landmarks for timestep: 001052, camera: 0
+2026-06-15 23:44:19,438 INFO    : Annotate facial landmarks for timestep: 001060, camera: 0
+2026-06-15 23:44:20,121 INFO    : Annotate facial landmarks for timestep: 001068, camera: 0
+2026-06-15 23:44:20,793 INFO    : Annotate facial landmarks for timestep: 001076, camera: 0
+2026-06-15 23:44:21,478 INFO    : Annotate facial landmarks for timestep: 001084, camera: 0
+2026-06-15 23:44:22,176 INFO    : Annotate facial landmarks for timestep: 001092, camera: 0
+2026-06-15 23:44:22,851 INFO    : Annotate facial landmarks for timestep: 001100, camera: 0
+2026-06-15 23:44:23,523 INFO    : Annotate facial landmarks for timestep: 001108, camera: 0
+2026-06-15 23:44:24,194 INFO    : Annotate facial landmarks for timestep: 001116, camera: 0
+2026-06-15 23:44:24,866 INFO    : Annotate facial landmarks for timestep: 001124, camera: 0
+2026-06-15 23:44:25,577 INFO    : Annotate facial landmarks for timestep: 001132, camera: 0
+2026-06-15 23:44:26,278 INFO    : Annotate facial landmarks for timestep: 001140, camera: 0
+2026-06-15 23:44:26,969 INFO    : Annotate facial landmarks for timestep: 001148, camera: 0
+2026-06-15 23:44:27,649 INFO    : Annotate facial landmarks for timestep: 001156, camera: 0
+2026-06-15 23:44:28,298 INFO    : Annotate facial landmarks for timestep: 001164, camera: 0
+2026-06-15 23:44:28,930 INFO    : Annotate facial landmarks for timestep: 001172, camera: 0
+2026-06-15 23:44:29,580 INFO    : Annotate facial landmarks for timestep: 001180, camera: 0
+2026-06-15 23:44:30,232 INFO    : Annotate facial landmarks for timestep: 001188, camera: 0
+2026-06-15 23:44:30,870 INFO    : Annotate facial landmarks for timestep: 001196, camera: 0
+2026-06-15 23:44:31,503 INFO    : Annotate facial landmarks for timestep: 001204, camera: 0
+2026-06-15 23:44:32,147 INFO    : Annotate facial landmarks for timestep: 001212, camera: 0
+2026-06-15 23:44:32,791 INFO    : Annotate facial landmarks for timestep: 001220, camera: 0
+2026-06-15 23:44:33,439 INFO    : Annotate facial landmarks for timestep: 001228, camera: 0
+2026-06-15 23:44:34,092 INFO    : Annotate facial landmarks for timestep: 001236, camera: 0
+2026-06-15 23:44:34,773 INFO    : Annotate facial landmarks for timestep: 001244, camera: 0
+2026-06-15 23:44:35,467 INFO    : Annotate facial landmarks for timestep: 001252, camera: 0
+2026-06-15 23:44:36,130 INFO    : Annotate facial landmarks for timestep: 001260, camera: 0
+2026-06-15 23:44:36,807 INFO    : Annotate facial landmarks for timestep: 001268, camera: 0
+2026-06-15 23:44:37,466 INFO    : Annotate facial landmarks for timestep: 001276, camera: 0
+2026-06-15 23:44:38,121 INFO    : Annotate facial landmarks for timestep: 001284, camera: 0
+2026-06-15 23:44:38,787 INFO    : Annotate facial landmarks for timestep: 001292, camera: 0
+2026-06-15 23:44:39,445 INFO    : Annotate facial landmarks for timestep: 001300, camera: 0
+2026-06-15 23:44:40,094 INFO    : Annotate facial landmarks for timestep: 001308, camera: 0
+2026-06-15 23:44:40,741 INFO    : Annotate facial landmarks for timestep: 001316, camera: 0
+2026-06-15 23:44:41,412 INFO    : Annotate facial landmarks for timestep: 001324, camera: 0
+2026-06-15 23:44:42,089 INFO    : Annotate facial landmarks for timestep: 001332, camera: 0
+2026-06-15 23:44:42,761 INFO    : Annotate facial landmarks for timestep: 001340, camera: 0
+2026-06-15 23:44:43,429 INFO    : Annotate facial landmarks for timestep: 001348, camera: 0
+2026-06-15 23:44:44,140 INFO    : Annotate facial landmarks for timestep: 001356, camera: 0
+2026-06-15 23:44:44,816 INFO    : Annotate facial landmarks for timestep: 001364, camera: 0
+2026-06-15 23:44:45,482 INFO    : Annotate facial landmarks for timestep: 001372, camera: 0
+2026-06-15 23:44:46,145 INFO    : Annotate facial landmarks for timestep: 001380, camera: 0
+2026-06-15 23:44:46,789 INFO    : Annotate facial landmarks for timestep: 001388, camera: 0
+2026-06-15 23:44:47,430 INFO    : Annotate facial landmarks for timestep: 001396, camera: 0
+2026-06-15 23:44:48,087 INFO    : Annotate facial landmarks for timestep: 001404, camera: 0
+2026-06-15 23:44:48,756 INFO    : Annotate facial landmarks for timestep: 001412, camera: 0
+2026-06-15 23:44:49,407 INFO    : Annotate facial landmarks for timestep: 001420, camera: 0
+2026-06-15 23:44:50,053 INFO    : Annotate facial landmarks for timestep: 001428, camera: 0
+2026-06-15 23:44:50,706 INFO    : Annotate facial landmarks for timestep: 001436, camera: 0
+2026-06-15 23:44:51,350 INFO    : Annotate facial landmarks for timestep: 001444, camera: 0
+2026-06-15 23:44:51,998 INFO    : Annotate facial landmarks for timestep: 001452, camera: 0
+2026-06-15 23:44:52,641 INFO    : Annotate facial landmarks for timestep: 001460, camera: 0
+2026-06-15 23:44:53,279 INFO    : Annotate facial landmarks for timestep: 001468, camera: 0
+2026-06-15 23:44:53,938 INFO    : Annotate facial landmarks for timestep: 001476, camera: 0
+2026-06-15 23:44:54,636 INFO    : Annotate facial landmarks for timestep: 001484, camera: 0
+2026-06-15 23:44:55,311 INFO    : Annotate facial landmarks for timestep: 001492, camera: 0
+2026-06-15 23:44:56,018 INFO    : Annotate facial landmarks for timestep: 001500, camera: 0
+2026-06-15 23:44:56,721 INFO    : Annotate facial landmarks for timestep: 001508, camera: 0
+2026-06-15 23:44:57,411 INFO    : Annotate facial landmarks for timestep: 001516, camera: 0
+2026-06-15 23:44:58,091 INFO    : Annotate facial landmarks for timestep: 001524, camera: 0
+2026-06-15 23:44:58,775 INFO    : Annotate facial landmarks for timestep: 001532, camera: 0
+2026-06-15 23:44:59,461 INFO    : Annotate facial landmarks for timestep: 001540, camera: 0
+2026-06-15 23:45:00,189 INFO    : Annotate facial landmarks for timestep: 001548, camera: 0
+2026-06-15 23:45:00,915 INFO    : Annotate facial landmarks for timestep: 001556, camera: 0
+2026-06-15 23:45:01,622 INFO    : Annotate facial landmarks for timestep: 001564, camera: 0
+2026-06-15 23:45:02,338 INFO    : Annotate facial landmarks for timestep: 001572, camera: 0
+2026-06-15 23:45:03,064 INFO    : Annotate facial landmarks for timestep: 001580, camera: 0
+2026-06-15 23:45:03,774 INFO    : Annotate facial landmarks for timestep: 001588, camera: 0
+2026-06-15 23:45:04,490 INFO    : Annotate facial landmarks for timestep: 001596, camera: 0
+2026-06-15 23:45:05,216 INFO    : Annotate facial landmarks for timestep: 001604, camera: 0
+2026-06-15 23:45:05,930 INFO    : Annotate facial landmarks for timestep: 001612, camera: 0
+2026-06-15 23:45:06,644 INFO    : Annotate facial landmarks for timestep: 001620, camera: 0
+2026-06-15 23:45:07,318 INFO    : Annotate facial landmarks for timestep: 001628, camera: 0
+2026-06-15 23:45:08,025 INFO    : Annotate facial landmarks for timestep: 001636, camera: 0
+2026-06-15 23:45:08,714 INFO    : Annotate facial landmarks for timestep: 001644, camera: 0
+2026-06-15 23:45:09,390 INFO    : Annotate facial landmarks for timestep: 001652, camera: 0
+2026-06-15 23:45:10,053 INFO    : Annotate facial landmarks for timestep: 001660, camera: 0
+2026-06-15 23:45:10,725 INFO    : Annotate facial landmarks for timestep: 001668, camera: 0
+2026-06-15 23:45:11,461 INFO    : Annotate facial landmarks for timestep: 001676, camera: 0
+2026-06-15 23:45:12,177 INFO    : Annotate facial landmarks for timestep: 001684, camera: 0
+2026-06-15 23:45:12,915 INFO    : Annotate facial landmarks for timestep: 001692, camera: 0
+2026-06-15 23:45:13,654 INFO    : Annotate facial landmarks for timestep: 001700, camera: 0
+2026-06-15 23:45:14,386 INFO    : Annotate facial landmarks for timestep: 001708, camera: 0
+2026-06-15 23:45:15,114 INFO    : Annotate facial landmarks for timestep: 001716, camera: 0
+2026-06-15 23:45:15,807 INFO    : Annotate facial landmarks for timestep: 001724, camera: 0
+2026-06-15 23:45:16,504 INFO    : Annotate facial landmarks for timestep: 001732, camera: 0
+2026-06-15 23:45:17,200 INFO    : Annotate facial landmarks for timestep: 001740, camera: 0
+2026-06-15 23:45:17,892 INFO    : Annotate facial landmarks for timestep: 001748, camera: 0
+2026-06-15 23:45:18,573 INFO    : Annotate facial landmarks for timestep: 001756, camera: 0
+2026-06-15 23:45:19,250 INFO    : Annotate facial landmarks for timestep: 001764, camera: 0
+2026-06-15 23:45:19,919 INFO    : Annotate facial landmarks for timestep: 001772, camera: 0
+2026-06-15 23:45:20,594 INFO    : Annotate facial landmarks for timestep: 001780, camera: 0
+2026-06-15 23:45:21,273 INFO    : Annotate facial landmarks for timestep: 001788, camera: 0
+2026-06-15 23:45:21,954 INFO    : Annotate facial landmarks for timestep: 001796, camera: 0
+2026-06-15 23:45:22,622 INFO    : Annotate facial landmarks for timestep: 001804, camera: 0
+2026-06-15 23:45:23,296 INFO    : Annotate facial landmarks for timestep: 001812, camera: 0
+2026-06-15 23:45:23,995 INFO    : Annotate facial landmarks for timestep: 001820, camera: 0
+2026-06-15 23:45:24,695 INFO    : Annotate facial landmarks for timestep: 001828, camera: 0
+2026-06-15 23:45:25,397 INFO    : Annotate facial landmarks for timestep: 001836, camera: 0
+2026-06-15 23:45:26,100 INFO    : Annotate facial landmarks for timestep: 001844, camera: 0
+2026-06-15 23:45:26,805 INFO    : Annotate facial landmarks for timestep: 001852, camera: 0
+2026-06-15 23:45:27,500 INFO    : Annotate facial landmarks for timestep: 001860, camera: 0
+2026-06-15 23:45:28,204 INFO    : Annotate facial landmarks for timestep: 001868, camera: 0
+2026-06-15 23:45:28,895 INFO    : Annotate facial landmarks for timestep: 001876, camera: 0
+2026-06-15 23:45:29,579 INFO    : Annotate facial landmarks for timestep: 001884, camera: 0
+2026-06-15 23:45:30,267 INFO    : Annotate facial landmarks for timestep: 001892, camera: 0
+2026-06-15 23:45:30,958 INFO    : Annotate facial landmarks for timestep: 001900, camera: 0
+2026-06-15 23:45:31,654 INFO    : Annotate facial landmarks for timestep: 001908, camera: 0
+2026-06-15 23:45:32,349 INFO    : Annotate facial landmarks for timestep: 001916, camera: 0
+2026-06-15 23:45:33,042 INFO    : Annotate facial landmarks for timestep: 001924, camera: 0
+2026-06-15 23:45:33,722 INFO    : Annotate facial landmarks for timestep: 001932, camera: 0
+2026-06-15 23:45:34,395 INFO    : Annotate facial landmarks for timestep: 001940, camera: 0
+2026-06-15 23:45:35,037 INFO    : Annotate facial landmarks for timestep: 001948, camera: 0
+2026-06-15 23:45:35,691 INFO    : Annotate facial landmarks for timestep: 001956, camera: 0
+2026-06-15 23:45:36,348 INFO    : Annotate facial landmarks for timestep: 001964, camera: 0
+2026-06-15 23:45:36,993 INFO    : Annotate facial landmarks for timestep: 001972, camera: 0
+2026-06-15 23:45:37,638 INFO    : Annotate facial landmarks for timestep: 001980, camera: 0
+2026-06-15 23:45:38,278 INFO    : Annotate facial landmarks for timestep: 001988, camera: 0
+2026-06-15 23:45:38,923 INFO    : Annotate facial landmarks for timestep: 001996, camera: 0
+2026-06-15 23:45:39,576 INFO    : Annotate facial landmarks for timestep: 002004, camera: 0
+2026-06-15 23:45:40,239 INFO    : Annotate facial landmarks for timestep: 002012, camera: 0
+2026-06-15 23:45:40,915 INFO    : Annotate facial landmarks for timestep: 002020, camera: 0
+2026-06-15 23:45:41,601 INFO    : Annotate facial landmarks for timestep: 002028, camera: 0
+2026-06-15 23:45:42,277 INFO    : Annotate facial landmarks for timestep: 002036, camera: 0
+2026-06-15 23:45:42,947 INFO    : Annotate facial landmarks for timestep: 002044, camera: 0
+2026-06-15 23:45:43,614 INFO    : Annotate facial landmarks for timestep: 002052, camera: 0
+2026-06-15 23:45:44,277 INFO    : Annotate facial landmarks for timestep: 002060, camera: 0
+2026-06-15 23:45:44,933 INFO    : Annotate facial landmarks for timestep: 002068, camera: 0
+2026-06-15 23:45:45,596 INFO    : Annotate facial landmarks for timestep: 002076, camera: 0
+2026-06-15 23:45:46,252 INFO    : Annotate facial landmarks for timestep: 002084, camera: 0
+2026-06-15 23:45:46,911 INFO    : Annotate facial landmarks for timestep: 002092, camera: 0
+2026-06-15 23:45:47,574 INFO    : Annotate facial landmarks for timestep: 002100, camera: 0
+2026-06-15 23:45:48,231 INFO    : Annotate facial landmarks for timestep: 002108, camera: 0
+2026-06-15 23:45:48,911 INFO    : Annotate facial landmarks for timestep: 002116, camera: 0
+2026-06-15 23:45:49,619 INFO    : Annotate facial landmarks for timestep: 002124, camera: 0
+2026-06-15 23:45:50,314 INFO    : Annotate facial landmarks for timestep: 002132, camera: 0
+2026-06-15 23:45:50,983 INFO    : Annotate facial landmarks for timestep: 002140, camera: 0
+2026-06-15 23:45:51,668 INFO    : Annotate facial landmarks for timestep: 002148, camera: 0
+2026-06-15 23:45:52,349 INFO    : Annotate facial landmarks for timestep: 002156, camera: 0
+2026-06-15 23:45:53,025 INFO    : Annotate facial landmarks for timestep: 002164, camera: 0
+2026-06-15 23:45:53,682 INFO    : Annotate facial landmarks for timestep: 002172, camera: 0
+2026-06-15 23:45:54,322 INFO    : Annotate facial landmarks for timestep: 002180, camera: 0
+2026-06-15 23:45:54,984 INFO    : Annotate facial landmarks for timestep: 002188, camera: 0
+2026-06-15 23:45:55,674 INFO    : Annotate facial landmarks for timestep: 002196, camera: 0
+2026-06-15 23:45:56,340 INFO    : Annotate facial landmarks for timestep: 002204, camera: 0
+2026-06-15 23:45:57,016 INFO    : Annotate facial landmarks for timestep: 002212, camera: 0
+2026-06-15 23:45:57,688 INFO    : Annotate facial landmarks for timestep: 002220, camera: 0
+2026-06-15 23:45:58,356 INFO    : Annotate facial landmarks for timestep: 002228, camera: 0
+2026-06-15 23:45:59,032 INFO    : Annotate facial landmarks for timestep: 002236, camera: 0
+2026-06-15 23:45:59,682 INFO    : Annotate facial landmarks for timestep: 002244, camera: 0
+2026-06-15 23:46:00,327 INFO    : Annotate facial landmarks for timestep: 002252, camera: 0
+2026-06-15 23:46:00,975 INFO    : Annotate facial landmarks for timestep: 002260, camera: 0
+2026-06-15 23:46:01,625 INFO    : Annotate facial landmarks for timestep: 002268, camera: 0
+2026-06-15 23:46:02,265 INFO    : Annotate facial landmarks for timestep: 002276, camera: 0
+2026-06-15 23:46:02,917 INFO    : Annotate facial landmarks for timestep: 002284, camera: 0
+2026-06-15 23:46:03,583 INFO    : Annotate facial landmarks for timestep: 002292, camera: 0
+2026-06-15 23:46:04,247 INFO    : Annotate facial landmarks for timestep: 002300, camera: 0
+2026-06-15 23:46:04,902 INFO    : Annotate facial landmarks for timestep: 002308, camera: 0
+2026-06-15 23:46:05,553 INFO    : Annotate facial landmarks for timestep: 002316, camera: 0
+2026-06-15 23:46:06,201 INFO    : Annotate facial landmarks for timestep: 002324, camera: 0
+2026-06-15 23:46:06,863 INFO    : Annotate facial landmarks for timestep: 002332, camera: 0
+2026-06-15 23:46:07,524 INFO    : Annotate facial landmarks for timestep: 002340, camera: 0
+2026-06-15 23:46:08,203 INFO    : Annotate facial landmarks for timestep: 002348, camera: 0
+2026-06-15 23:46:08,886 INFO    : Annotate facial landmarks for timestep: 002356, camera: 0
+2026-06-15 23:46:09,558 INFO    : Annotate facial landmarks for timestep: 002364, camera: 0
+2026-06-15 23:46:10,202 INFO    : Annotate facial landmarks for timestep: 002372, camera: 0
+2026-06-15 23:46:10,857 INFO    : Annotate facial landmarks for timestep: 002380, camera: 0
+2026-06-15 23:46:11,499 INFO    : Annotate facial landmarks for timestep: 002388, camera: 0
+2026-06-15 23:46:12,147 INFO    : Annotate facial landmarks for timestep: 002396, camera: 0
+2026-06-15 23:46:12,798 INFO    : Annotate facial landmarks for timestep: 002404, camera: 0
+2026-06-15 23:46:13,452 INFO    : Annotate facial landmarks for timestep: 002412, camera: 0
+2026-06-15 23:46:14,104 INFO    : Annotate facial landmarks for timestep: 002420, camera: 0
+2026-06-15 23:46:14,757 INFO    : Annotate facial landmarks for timestep: 002428, camera: 0
+2026-06-15 23:46:15,414 INFO    : Annotate facial landmarks for timestep: 002436, camera: 0
+2026-06-15 23:46:16,079 INFO    : Annotate facial landmarks for timestep: 002444, camera: 0
+2026-06-15 23:46:16,748 INFO    : Annotate facial landmarks for timestep: 002452, camera: 0
+2026-06-15 23:46:17,421 INFO    : Annotate facial landmarks for timestep: 002460, camera: 0
+2026-06-15 23:46:18,095 INFO    : Annotate facial landmarks for timestep: 002468, camera: 0
+2026-06-15 23:46:18,764 INFO    : Annotate facial landmarks for timestep: 002476, camera: 0
+2026-06-15 23:46:19,402 INFO    : Annotate facial landmarks for timestep: 002484, camera: 0
+2026-06-15 23:46:20,057 INFO    : Annotate facial landmarks for timestep: 002492, camera: 0
+2026-06-15 23:46:20,707 INFO    : Annotate facial landmarks for timestep: 002500, camera: 0
+2026-06-15 23:46:21,362 INFO    : Annotate facial landmarks for timestep: 002508, camera: 0
+2026-06-15 23:46:22,003 INFO    : Annotate facial landmarks for timestep: 002516, camera: 0
+2026-06-15 23:46:22,637 INFO    : Annotate facial landmarks for timestep: 002524, camera: 0
+2026-06-15 23:46:23,272 INFO    : Annotate facial landmarks for timestep: 002532, camera: 0
+2026-06-15 23:46:23,920 INFO    : Annotate facial landmarks for timestep: 002540, camera: 0
+2026-06-15 23:46:24,559 INFO    : Annotate facial landmarks for timestep: 002548, camera: 0
+2026-06-15 23:46:25,205 INFO    : Annotate facial landmarks for timestep: 002556, camera: 0
+2026-06-15 23:46:25,855 INFO    : Annotate facial landmarks for timestep: 002564, camera: 0
+2026-06-15 23:46:26,529 INFO    : Annotate facial landmarks for timestep: 002572, camera: 0
+2026-06-15 23:46:27,201 INFO    : Annotate facial landmarks for timestep: 002580, camera: 0
+2026-06-15 23:46:27,885 INFO    : Annotate facial landmarks for timestep: 002588, camera: 0
+2026-06-15 23:46:28,556 INFO    : Annotate facial landmarks for timestep: 002596, camera: 0
+2026-06-15 23:46:29,216 INFO    : Annotate facial landmarks for timestep: 002604, camera: 0
+2026-06-15 23:46:29,884 INFO    : Annotate facial landmarks for timestep: 002612, camera: 0
+2026-06-15 23:46:30,561 INFO    : Annotate facial landmarks for timestep: 002620, camera: 0
+2026-06-15 23:46:31,250 INFO    : Annotate facial landmarks for timestep: 002628, camera: 0
+2026-06-15 23:46:31,923 INFO    : Annotate facial landmarks for timestep: 002636, camera: 0
+2026-06-15 23:46:32,584 INFO    : Annotate facial landmarks for timestep: 002644, camera: 0
+2026-06-15 23:46:33,246 INFO    : Annotate facial landmarks for timestep: 002652, camera: 0
+2026-06-15 23:46:33,924 INFO    : Annotate facial landmarks for timestep: 002660, camera: 0
+2026-06-15 23:46:34,601 INFO    : Annotate facial landmarks for timestep: 002668, camera: 0
+2026-06-15 23:46:35,249 INFO    : Annotate facial landmarks for timestep: 002676, camera: 0
+2026-06-15 23:46:35,900 INFO    : Annotate facial landmarks for timestep: 002684, camera: 0
+2026-06-15 23:46:36,580 INFO    : Annotate facial landmarks for timestep: 002692, camera: 0
+2026-06-15 23:46:37,265 INFO    : Annotate facial landmarks for timestep: 002700, camera: 0
+2026-06-15 23:46:37,944 INFO    : Annotate facial landmarks for timestep: 002708, camera: 0
+2026-06-15 23:46:38,625 INFO    : Annotate facial landmarks for timestep: 002716, camera: 0
+2026-06-15 23:46:39,297 INFO    : Annotate facial landmarks for timestep: 002724, camera: 0
+2026-06-15 23:46:39,991 INFO    : Annotate facial landmarks for timestep: 002732, camera: 0
+2026-06-15 23:46:40,660 INFO    : Annotate facial landmarks for timestep: 002740, camera: 0
+2026-06-15 23:46:41,326 INFO    : Annotate facial landmarks for timestep: 002748, camera: 0
+2026-06-15 23:46:41,999 INFO    : Annotate facial landmarks for timestep: 002756, camera: 0
+2026-06-15 23:46:42,665 INFO    : Annotate facial landmarks for timestep: 002764, camera: 0
+2026-06-15 23:46:43,321 INFO    : Annotate facial landmarks for timestep: 002772, camera: 0
+2026-06-15 23:46:43,975 INFO    : Annotate facial landmarks for timestep: 002780, camera: 0
+2026-06-15 23:46:44,678 INFO    : Annotate facial landmarks for timestep: 002788, camera: 0
+2026-06-15 23:46:45,367 INFO    : Annotate facial landmarks for timestep: 002796, camera: 0
+2026-06-15 23:46:46,048 INFO    : Annotate facial landmarks for timestep: 002804, camera: 0
+2026-06-15 23:46:46,726 INFO    : Annotate facial landmarks for timestep: 002812, camera: 0
+2026-06-15 23:46:47,414 INFO    : Annotate facial landmarks for timestep: 002820, camera: 0
+2026-06-15 23:46:48,117 INFO    : Annotate facial landmarks for timestep: 002828, camera: 0
+2026-06-15 23:46:48,794 INFO    : Annotate facial landmarks for timestep: 002836, camera: 0
+2026-06-15 23:46:49,445 INFO    : Annotate facial landmarks for timestep: 002844, camera: 0
+2026-06-15 23:46:50,110 INFO    : Annotate facial landmarks for timestep: 002852, camera: 0
+2026-06-15 23:46:50,782 INFO    : Annotate facial landmarks for timestep: 002860, camera: 0
+2026-06-15 23:46:51,471 INFO    : Annotate facial landmarks for timestep: 002868, camera: 0
+2026-06-15 23:46:52,148 INFO    : Annotate facial landmarks for timestep: 002876, camera: 0
+2026-06-15 23:46:52,847 INFO    : Annotate facial landmarks for timestep: 002884, camera: 0
+2026-06-15 23:46:53,570 INFO    : Annotate facial landmarks for timestep: 002892, camera: 0
+2026-06-15 23:46:54,260 INFO    : Annotate facial landmarks for timestep: 002900, camera: 0
+2026-06-15 23:46:54,941 INFO    : Annotate facial landmarks for timestep: 002908, camera: 0
+2026-06-15 23:46:55,628 INFO    : Annotate facial landmarks for timestep: 002916, camera: 0
+2026-06-15 23:46:56,313 INFO    : Annotate facial landmarks for timestep: 002924, camera: 0
+2026-06-15 23:46:56,987 INFO    : Annotate facial landmarks for timestep: 002932, camera: 0
+2026-06-15 23:46:57,646 INFO    : Annotate facial landmarks for timestep: 002940, camera: 0
+2026-06-15 23:46:58,302 INFO    : Annotate facial landmarks for timestep: 002948, camera: 0
+2026-06-15 23:46:58,968 INFO    : Annotate facial landmarks for timestep: 002956, camera: 0
+2026-06-15 23:46:59,633 INFO    : Annotate facial landmarks for timestep: 002964, camera: 0
+2026-06-15 23:47:00,294 INFO    : Annotate facial landmarks for timestep: 002972, camera: 0
+2026-06-15 23:47:00,932 INFO    : Annotate facial landmarks for timestep: 002980, camera: 0
+2026-06-15 23:47:01,581 INFO    : Annotate facial landmarks for timestep: 002988, camera: 0
+2026-06-15 23:47:02,233 INFO    : Annotate facial landmarks for timestep: 002996, camera: 0
+2026-06-15 23:47:02,911 INFO    : Annotate facial landmarks for timestep: 003004, camera: 0
+2026-06-15 23:47:03,559 INFO    : Annotate facial landmarks for timestep: 003012, camera: 0
+2026-06-15 23:47:04,173 INFO    : Annotate facial landmarks for timestep: 003020, camera: 0
+2026-06-15 23:47:04,777 INFO    : Annotate facial landmarks for timestep: 003028, camera: 0
+2026-06-15 23:47:05,370 INFO    : Annotate facial landmarks for timestep: 003036, camera: 0
+2026-06-15 23:47:05,855 INFO    : Annotate facial landmarks for timestep: 003044, camera: 0
+2026-06-15 23:47:06,331 INFO    : Annotate facial landmarks for timestep: 003052, camera: 0
+2026-06-15 23:47:06,796 INFO    : Annotate facial landmarks for timestep: 003060, camera: 0
+2026-06-15 23:47:07,257 INFO    : Annotate facial landmarks for timestep: 003068, camera: 0
