@@ -5,12 +5,21 @@ trap 'echo ""; echo "ERROR: Stage 5 failed at line $LINENO. Command: $BASH_COMMA
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ELITE_DIR="$SCRIPT_DIR/elite"
-ELITE_PYTHON="$HOME/miniconda3/envs/ELITE/bin/python"
+
+# Detect ELITE python (miniforge3 → miniconda3 fallback)
+if [ -f "/opt/miniforge3/envs/ELITE/bin/python" ]; then
+    ELITE_PYTHON="/opt/miniforge3/envs/ELITE/bin/python"
+elif [ -f "/venv/ELITE/bin/python" ]; then
+    ELITE_PYTHON="/venv/ELITE/bin/python"
+else
+    ELITE_PYTHON="$HOME/miniconda3/envs/ELITE/bin/python"
+fi
 
 echo "================================================"
 echo "  Stage 5: Render Avatar Video (ELITE)"
 echo "================================================"
 echo ""
+
 
 # --- Inputs
 DEFAULT_VIDEO=""

@@ -149,7 +149,7 @@ else
 fi
 
 # ── elite/src patches — applied via sed on each new machine ──────────────────
-# elite/ is a submodule with its own git repo — patches cannot be committed to parent repo
+# elite/src/ is now tracked directly in git — patches are already in place after git clone/pull
 
 # test_dataloader.py line ~395: fp['shape'] → fp['shape'][0]
 # Why: DataLoader batches shape(1,300) → (B,1,300) = 3D tensor → torch.cat dim mismatch
@@ -180,6 +180,68 @@ for f in \
         echo "  [skip] $(basename $f): already patched or pattern not found"
     fi
 done
+
+# geom.py: valid_mask must be computed AFTER impainting, not before
+# Bug: eye/nose UV holes (index_image==-1) get zero opacity → black artifacts
+GEOM_PY="$ELITE_DIR/src/utils/geom.py"
+if [ -f "$GEOM_PY" ]; then
+    if grep -q "valid_mask = index_image\[..., 0\] != -1" "$GEOM_PY" && grep -q "# valid_mask = index_image" "$GEOM_PY"; then
+        python3 - <<PYEOF_GEOM
+import re
+path = "$GEOM_PY"
+with open(path) as f:
+    code = f.read()
+old = '''        # valid_mask = index_image[..., :1] != -1
+        valid_mask = index_image[..., 0] != -1
+        face_index, bary_image = make_uv_barys(
+            self.vt, self.vti, uv_shape=uv_size, flip_uv=flip_uv
+        )
+        if impaint:
+            if uv_size >= 1024:
+                logger.info(
+                    "impainting index image might take a while for sizes >= 1024"
+                )
+
+            index_image, bary_image = index_image_impaint(
+                index_image, bary_image, impaint_threshold
+            )
+            # TODO: we can avoid doing this 2x
+            face_index = index_image_impaint(
+                face_index, distance_threshold=impaint_threshold
+            )
+
+        self.register_buffer("valid_mask", valid_mask.cpu())'''
+new = '''        face_index, bary_image = make_uv_barys(
+            self.vt, self.vti, uv_shape=uv_size, flip_uv=flip_uv
+        )
+        if impaint:
+            if uv_size >= 1024:
+                logger.info(
+                    "impainting index image might take a while for sizes >= 1024"
+                )
+
+            index_image, bary_image = index_image_impaint(
+                index_image, bary_image, impaint_threshold
+            )
+            # TODO: we can avoid doing this 2x
+            face_index = index_image_impaint(
+                face_index, distance_threshold=impaint_threshold
+            )
+
+        # Compute valid_mask AFTER impainting so filled UV holes are included
+        valid_mask = index_image[..., 0] != -1
+        self.register_buffer("valid_mask", valid_mask.cpu())'''
+if old in code:
+    with open(path, 'w') as f:
+        f.write(code.replace(old, new))
+    print("  [ok] geom.py: valid_mask moved after impainting")
+else:
+    print("  [skip] geom.py: already patched or pattern not found")
+PYEOF_GEOM
+    else
+        echo "  [skip] geom.py: already patched"
+    fi
+fi
 
 # render.py: cam_ids and resolution
 RENDER_PY="$ELITE_DIR/src/render.py"

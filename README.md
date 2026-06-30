@@ -227,6 +227,91 @@ Renders the trained avatar with Stage 4 lip-sync motion. Optionally applies HuFi
 - Drive images 6-digit vs transforms.json 5-digit filenames → auto-renamed
 - Stage 4 npz `shape (1,)` → auto-fixed to `(1,300)`
 - Stage 4 `expr` and `jaw_pose` out of training distribution → auto-scaled
+- Audio (speech.wav) muxed into final video with ffmpeg
+
+### Black artifact root cause — geom.py valid_mask bug
+
+**Symptom:** Black holes covering eyes, nose bridge, and mouth in render output.
+
+**Root cause:** `elite/src/utils/geom.py` computed `valid_mask` BEFORE `index_image_impaint()`. FLAME UV has holes (index_image == -1) in eye sockets and nose bridge. With `impaint=True` those holes get filled — but `valid_mask` was already saved pre-impaint, so those regions remained masked to zero → `opacity = sigmoid(...) * uv_mask = 0` → black.
+
+**Fix:** Move `valid_mask` computation to AFTER the impaint block:
+
+```python
+# In elite/src/utils/geom.py — WRONG (original):
+valid_mask = index_image[..., 0] != -1   # computed BEFORE impaint
+# ... impaint happens here ...
+self.register_buffer("valid_mask", valid_mask.cpu())  # pre-impaint mask!
+
+# CORRECT (fixed):
+# ... impaint happens here ...
+valid_mask = index_image[..., 0] != -1   # computed AFTER impaint
+self.register_buffer("valid_mask", valid_mask.cpu())
+```
+
+Apply on any machine:
+```bash
+cd ~/Documents/avatar-train-project/elite
+python3 - <<'EOF'
+path = "src/utils/geom.py"
+with open(path) as f:
+    code = f.read()
+old = """        # valid_mask = index_image[..., :1] != -1
+        valid_mask = index_image[..., 0] != -1
+        face_index, bary_image = make_uv_barys(
+            self.vt, self.vti, uv_shape=uv_size, flip_uv=flip_uv
+        )
+        if impaint:
+            if uv_size >= 1024:
+                logger.info(
+                    "impainting index image might take a while for sizes >= 1024"
+                )
+
+            index_image, bary_image = index_image_impaint(
+                index_image, bary_image, impaint_threshold
+            )
+            # TODO: we can avoid doing this 2x
+            face_index = index_image_impaint(
+                face_index, distance_threshold=impaint_threshold
+            )
+
+        self.register_buffer("valid_mask", valid_mask.cpu())"""
+new = """        face_index, bary_image = make_uv_barys(
+            self.vt, self.vti, uv_shape=uv_size, flip_uv=flip_uv
+        )
+        if impaint:
+            if uv_size >= 1024:
+                logger.info(
+                    "impainting index image might take a while for sizes >= 1024"
+                )
+
+            index_image, bary_image = index_image_impaint(
+                index_image, bary_image, impaint_threshold
+            )
+            # TODO: we can avoid doing this 2x
+            face_index = index_image_impaint(
+                face_index, distance_threshold=impaint_threshold
+            )
+
+        # Compute valid_mask AFTER impainting so filled UV holes are included
+        valid_mask = index_image[..., 0] != -1
+        self.register_buffer("valid_mask", valid_mask.cpu())"""
+if old in code:
+    with open(path, 'w') as f:
+        f.write(code.replace(old, new))
+    print("PATCHED")
+else:
+    print("NOT FOUND — already patched or file version mismatch")
+EOF
+```
+
+> **Note:** `setup_vastai.sh` applies this patch automatically. On Linux server, apply manually.
+
+> **After patching:** Delete old render cache before re-running Stage 5 — Stage 5 skips the render step if frames already exist:
+> ```bash
+> rm -rf ~/Documents/avatar-train-project/elite/outputs/IMG_9625/vis_motion/
+> rm -rf ~/Documents/avatar-train-project/elite/data/drive/stage4_Hello_World
+> ```
 
 ### Manual patch required on each new machine
 `elite/src/dataloader/test_dataloader.py` line 395 must be patched:
