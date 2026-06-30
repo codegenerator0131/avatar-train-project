@@ -31,9 +31,9 @@ Stage 5 ── Render ─────────────── talking-head
 |-------|--------|
 | 1 — Capture | ✅ Done |
 | 2 — FLAME Tracking (VHAP) | ✅ Done |
-| 3 — 3DGS Avatar (ELITE) | ✅ Done |
+| 3 — 3DGS Avatar (ELITE) | ⚠️ Needs retrain with fixed geom.py |
 | 4 — Audio-to-Motion (CodeTalker + XTTS) | ✅ Done |
-| 5 — Render (ELITE + HuFix) | ✅ Done |
+| 5 — Render (ELITE + HuFix) | ⚠️ Blocked by Stage 3 retrain |
 
 ---
 
@@ -58,10 +58,12 @@ Stage 5 ── Render ─────────────── talking-head
 ```bash
 git clone <this-repo>
 cd avatar-train-project
-git submodule update --init --recursive
+git submodule update --init --recursive   # for vhap only
 bash setup_linux.sh
 bash start.sh
 ```
+
+> `elite/` is tracked directly in git (not a submodule) — all patches are included automatically after clone.
 
 ### Vast.ai (cloud GPU)
 
@@ -159,6 +161,8 @@ flame_param/              # per-frame .npz, 5-digit filenames: 00000.npz
 Trains a 3D Gaussian Splatting avatar using ELITE (CVPR 2026).
 
 **Recommended steps:** `ST1_N_STEPS=2000`, `ST2_N_STEPS=4000` (~12 hrs on RTX 4090 with `singleview_bs=4`)
+
+> ⚠️ **Must retrain after geom.py fix (2026-06-30).** The previous checkpoint was trained with a broken `valid_mask` that zeroed opacity in eye/nose UV regions — the model learned wrong weights. Retrain on Vast.ai with the fixed code (already in git) to get clean output.
 
 **Output:** `elite/outputs/IMG_9625/st2/checkpoints/st2_final.pth`
 
