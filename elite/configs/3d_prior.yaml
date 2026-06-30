@@ -1,0 +1,68 @@
+training:
+  model_type: meshunetprior
+  wandb_id: youwang
+  batch_render: true
+  seed: 42
+  nepochs: 10001
+  bg_color:
+  - 1.0
+  - 1.0
+  - 1.0
+  res: 512
+  val_num_id: 8
+  batch_size: 32
+  uv_size: 512
+  num_id: 334
+  rand_frame: true
+  num_input_view: 4
+  num_train_view: 4
+  log_freq: 100
+  val_freq: 500
+  ckpt_interval: 2000
+  grad_clip: 0.5
+  lr: 0.0005
+  weight_decay: 0.02
+  lambdas:
+    photo: 10.0
+    mask: 2.0
+    ssim: 2.0
+    lpips: 0.2
+    geom_uv: 20.0
+    nrm_uv: 0.2
+    tex_uv: 0.2
+    tv_color: 1.0e-06
+    nrm: 0.5
+    dist: 100.0
+  resume_ckpt: null
+decoder:
+  use_uv_rgb: true
+  use_uv_geo: true
+  lat_dim: 128
+  gs_type: 2dgs
+  learn_quat: true
+  learn_stoffset: true
+  learn_opacity: true
+  learn_input_upsample: false
+  deeper_input_upsample_layer: false
+  multigs_perpixel: false
+  2dgs_disp_min: -0.1
+  2dgs_disp_max: 0.1
+  unet_type: SongUNet
+  model_channels: 32
+  attn_resolutions:
+  - 16
+  num_blocks: 1
+  channel_mult:
+  - 1
+  - 2
+  - 2
+  - 2
+  - 2
+  - 2
+  use_uv_dino: false
+flame:
+  n_shape: 300
+  n_expr: 100
+  n_tex: 100
+  add_teeth: true
+  remove_lip_inside: false
